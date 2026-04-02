@@ -196,7 +196,13 @@ Test reports represent the most critical output of a network protocol testing wo
 However, due to the potential inaccuracies in test case descriptions, generated scripts or device configurations, a test failure does not always indicate a protocol implementation defect. Therefore, failed test cases require further inspection using execution logs, diagnostic outputs, and relevant runtime context. This motivates the integration of a feedback and refinement mechanism into the framework.
 The feedback loop analyzes runtime behaviors to detect discrepancies that are difficult to identify through static inspection alone. This iterative refinement process is necessary to improve the reliability of the automated testing system.
 
+To make the feedback and refinement process more explicit, the feedback loop MAY be structured along three aspects: feedback inputs, processing logic, and refinement actions. 
 
+Feedback inputs may include test execution results (e.g., pass/fail outcomes), execution logs, diagnostic outputs, telemetry collected during the test run, and DUT state or configuration snapshots. These inputs provide complementary views of runtime behavior and help identify discrepancies between expected and observed results. 
+
+The processing logic analyzes such discrepancies and determines whether a failure is more likely caused by an issue in the DUT implementation, an error in the generated test case, or a problem in the generated tester scripts or DUT configurations. This processing may be rule-based, learning-assisted, or a combination of both, depending on the maturity level of the automation system. 
+
+Based on the analysis results, refinement actions may include regenerating or correcting test cases, adjusting test parameters (e.g., boundary values or timing conditions), and fixing or updating tester scripts and DUT configurations. Making these elements explicit helps improve reproducibility, supports measurable refinement, and provides a clearer foundation for future adaptive enhancements.
 
 # Automation Maturity Levels in Network Protocol Testing
 
