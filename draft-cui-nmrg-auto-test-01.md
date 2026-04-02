@@ -84,7 +84,7 @@ This document proposes an automated network protocol testing framework designed 
 In addition, this document introduces six Automation Maturity Levels (Levels 0-5) to characterize the maturity of automation in network protocol testing.
 These levels serve as a technology roadmap that helps researchers and practitioners assess the current capabilities of their testing systems and identify directions for future improvement. Each level captures progressively stronger capabilities in protocol formalization, orchestration, analysis, and independence from human intervention.
 
-# Definition and Acronyms
+# Definitions and Acronyms
 
 
 DUT: Device Under Test
@@ -110,7 +110,7 @@ Tester Script: An executable program or sequence of instructions that controls a
 Network protocol testing is required in many scenarios. This document outlines two common phases where protocol testing plays a critical role:
 
 1. Device Development Phase:
-During the development of network equipment, vendors must ensure that their devices conform to protocol specifications. This requires the construction of a large number of test cases. Testing during this phase may involve both protocol testers and the DUT, or it may be performed solely through interconnection among DUTs.
+During the development of network equipment, vendors MUST ensure that their devices conform to protocol specifications. This requires the construction of a large number of test cases. Testing during this phase may involve both protocol testers and the DUT, or it may be performed solely through interconnection among DUTs.
 
 2. Procurement Evaluation Phase:
 In the context of equipment acquisition by network operators or enterprises, candidate equipment suppliers need to demonstrate compliance with specified requirements. In this phase, third-party organizations typically perform the testing to ensure neutrality. This type of testing is usually conducted as black-box testing, requiring the use of protocol testers interconnected with the DUT. The test cases are executed while observing whether the DUT behaves in accordance with expected protocol specifications.
@@ -121,17 +121,17 @@ In the context of equipment acquisition by network operators or enterprises, can
 Network protocol testing is a complex and comprehensive process that typically involves multiple parties and various necessary components. The following entities are generally involved in protocol testing:
 
 1. DUT:
-The DUT can be a physical network device (such as switches, routers, firewalls, etc.) or a virtual network device (such as FRRouting (FRR) routers and others).
+The DUT can be a physical network device (such as switches, routers, and firewalls) or a virtual network device (such as FRRouting (FRR) routers and others).
 
 2. Tester:
 A protocol tester is a specialized network device that usually implements a standard and comprehensive protocol stack. It can generate test traffic, collect and analyze incoming traffic, and produce test results. Protocol testers can typically be controlled via scripts, allowing automated interaction with the DUT to carry out protocol tests.
 
 3. Test Cases: 
-Protocol test cases may cover various categories, including protocol conformance tests, functional tests, and performance tests, etc. Each test case typically includes essential elements such as test topology, step-by-step procedures, and expected results. A well-defined test case also includes detailed configuration parameters.
+Protocol test cases may cover various categories, including protocol conformance tests, functional tests, and performance tests. Each test case typically includes essential elements such as test topology, step-by-step procedures, and expected results. A well-defined test case also includes detailed configuration parameters.
 
-4. Test Topology: Each test case must specify the network topology it requires. Before executing a test case, the corresponding topology must be established accordingly. In a batch testing scenario, frequent changes in topology can be time-consuming and inefficient. To mitigate this overhead, it is common practice to construct a minimal common topology that satisfies the requirements of all test cases in a given batch. This minimizes the number of devices and links needed while ensuring that each test case can be executed within the shared topology.
+4. Test Topology: Each test case MUST specify the network topology it requires. Before executing a test case, the corresponding topology MUST be established accordingly. In a batch testing scenario, frequent changes in topology can be time-consuming and inefficient. To mitigate this overhead, it is common practice to construct a minimal common topology that satisfies the requirements of all test cases in a given batch. This minimizes the number of devices and links needed while ensuring that each test case can be executed within the shared topology.
 
-5. DUT Configuration: Before executing a test case, the DUT must be initialized with specific configurations according to the test case requirements (setup). Throughout the test, the DUT configuration may undergo multiple modifications as dictated by the test scenario. Upon test completion, appropriate configurations are usually applied to restore the DUT to its initial state (teardown).
+5. DUT Configuration: Before executing a test case, the DUT MUST be initialized with specific configurations according to the test case requirements (setup). Throughout the test, the DUT configuration may undergo multiple modifications as dictated by the test scenario. Upon test completion, appropriate configurations are usually applied to restore the DUT to its initial state (teardown).
 
 6. Tester Configuration and Scripts: In test scenarios involving protocol testers, the tester often plays the active role by generating test traffic and orchestrating the test process. This requires the preparation of both tester-specific configurations and execution scripts. Tester scripts are typically designed in coordination with the DUT configurations to ensure proper interaction during the test.
 
@@ -176,9 +176,9 @@ The quality of generated test cases is typically evaluated along two primary dim
 ## Tester Script and DUT Configuration Generation
 
 
-Test cases are often translated into executable scripts using available API documentation and runtime environments. This process requires mapping natural language described test steps to specific function calls and configurations of test equipment and DUTs.
+Test cases are often translated into executable scripts using available API documentation and runtime environments. This process requires mapping test steps described in natural language to specific function calls and configurations of test equipment and DUTs.
 
-Since tester scripts and DUT configuration files are typically used together, they must be generated in a coordinated manner rather than in isolation. The generated configurations must ensure mutual interoperability within the test topology and align with the step-by-step actions defined in the test case. This includes setting compatible protocol parameters, interface bindings, and execution triggers to facilitate correct protocol interactions and achieve the intended test objectives.
+Since tester scripts and DUT configuration files are typically used together, they MUST be generated in a coordinated manner rather than in isolation. The generated configurations MUST ensure mutual interoperability within the test topology and align with the step-by-step actions defined in the test case. This includes setting compatible protocol parameters, interface bindings, and execution triggers to facilitate correct protocol interactions and achieve the intended test objectives.
 
 
 Before deploying the tester scripts and corresponding DUT configurations, it is essential to validate both their syntactic and semantic correctness. Although the protocol testing environment is isolated from production networks and thus inherently more tolerant to failure, invalid scripts or misconfigured devices can still render test executions ineffective or misleading. Therefore, a verification step is necessary to ensure that the generated artifacts conform to the expected syntax of the execution environment and accurately implement the intended test logic as defined by the test case specification.
@@ -186,9 +186,9 @@ Before deploying the tester scripts and corresponding DUT configurations, it is 
 ## Test Case Execution
 
 
-The execution of test cases involves the automated deployment of configurations to the DUT as well as the automated execution of test scripts on the tester. This process is typically carried out in batches and requires a test case management system to coordinate the workflow. Additionally, intermediate configuration updates during the execution phase may be necessary and should be handled accordingly.
+The execution of test cases involves the automated deployment of configurations to the DUT as well as the automated execution of test scripts on the tester. This process is typically carried out in batches and requires a test case management system to coordinate the workflow. Additionally, intermediate configuration updates during the execution phase may be necessary and SHOULD be handled accordingly.
 
-## Report Analysis, Feedback and Refinement
+## Report Analysis, Feedback, and Refinement
 
 
 Test reports represent the most critical output of a network protocol testing workflow. They typically indicate whether each test case has passed or failed and, in the event of failure, include detailed error information specifying which expected behaviors were not satisfied. These reports serve as an essential reference for device improvement, standard compliance assessment, or procurement decision-making.
@@ -327,14 +327,14 @@ Key Characteristics:
 
 
 
-# An Example of LLM-based Automated Network Protocol Test Framework (From Level 2 to Level 3)
+# An Example of an LLM-based Automated Network Protocol Test Framework (From Level 2 to Level 3)
 The emergence of LLMs has significantly advanced the degree of automation achievable in network protocol testing. Within the proposed framework, LLMs can serve as core components in multiple stages of the testing pipeline, enabling a transition from Level 2 (Partial Automation) to Level 3 (Conditional Automation). A key enabler is to introduce an explicit protocol formalization step that transforms unstructured RFC text into a structured, machine-interpretable intermediate representation (e.g., a protocol description spanning message formats, state machines, and normative behavioral constraints). With such a representation, downstream generation becomes more systematic and less dependent on ad-hoc, protocol-specific parsers.
 
 At the protocol formalization stage, LLMs can enrich RFCs with structured signals, such as section-level summaries, cross-references across documents, and normative requirement statements (e.g., \"MUST\" and \"SHOULD\"). The agent can further induce protocol modules (e.g., message formats, state machines, event-action rules, and algorithms) and formalize them into a unified representation that supports traversal and query. This representation serves as the semantic backbone for test generation, and it also helps in update scenarios by localizing changes and propagating them to the corresponding formal modules.
 
 Based on the formalized protocol representation, LLMs can generate test cases in a more structured manner by decoupling test case templates from test parameters. The template generation step expands extracted test points into parameterized templates that define test objectives, topology, execution steps, oracles, and static testbed configurations. The parameter instantiation step then populates template placeholders with concrete values, including representative boundary values and invalid values for robustness testing. When oracle values require computation, the system can synthesize small helper programs (e.g., Python scripts) to compute expected outcomes, and can apply equivalence partitioning to reduce redundant parameter combinations without sacrificing meaningful coverage.
 
-For test execution, LLMs can assist in translating abstract test procedures into executable artifacts for both the tester and the DUT. In practice, this translation is often a multi-step workflow that benefits from a structured agent architecture. For example, a core agent can orchestrate the artifact generation process, while specialized sub-agents handle documentation summarization, intent rewriting (turning high-level test objectives into API-aligned actions), and recurring fault fixing based on an experience pool. During execution, feedback from logs and device outputs can be used to iteratively refine generated artifacts, and an adaptive pruning mechanism can decide whether to stop exploring additional parameter instances for a given template when definitive failures are found or sufficient coverage has been achieved.
+For test execution, LLMs can assist in translating abstract test procedures into executable artifacts for both the tester and the DUT. In practice, this translation is often a multi-step workflow that benefits from a structured agent architecture. For example, a core agent can orchestrate the artifact generation process, while specialized sub-agents handle documentation summarization, intent rewriting (transforming high-level test objectives into API-aligned actions), and recurring fault fixing based on an experience pool. During execution, feedback from logs and device outputs can be used to iteratively refine generated artifacts, and an adaptive pruning mechanism can decide whether to stop exploring additional parameter instances for a given template when definitive failures are found or sufficient coverage has been achieved.
 
 Despite these capabilities, it is important to note that LLMs are fundamentally probabilistic and cannot guarantee determinism or correctness. Therefore, even when the framework can complete an automated loop with reduced human effort, human oversight remains valuable for validating critical intermediate artifacts (e.g., formalized protocol modules, test oracles, and high-impact configuration changes) and for handling ambiguous or novel protocol behaviors. Nevertheless, integrating LLMs with explicit protocol formalization, systematic template/parameter generation, and execution-time feedback provides a practical path for elevating protocol testing practices toward Level 3 maturity.
 
@@ -342,7 +342,7 @@ Despite these capabilities, it is important to note that LLMs are fundamentally 
 
 # Security Considerations
 
-1. Execution of Unverified Generated Code: Automatically generated test scripts or configurations (e.g., CLI commands, tester control scripts) may include incorrect or harmful instructions that misconfigure devices or disrupt test environments. Mitigation: All generated artifacts should undergo validation, including syntax checking, semantic verification against protocol constraints, and dry-run execution in sandboxed environments.
+1. Execution of Unverified Generated Code: Automatically generated test scripts or configurations (e.g., CLI commands, tester control scripts) may include incorrect or harmful instructions that misconfigure devices or disrupt test environments. Mitigation: All generated artifacts SHOULD undergo validation, including syntax checking, semantic verification against protocol constraints, and dry-run execution in sandboxed environments.
 
 2. AI-Assisted Component Risks: LLMs may produce incorrect or insecure outputs due to their probabilistic nature or prompt manipulation. Mitigation: Apply input sanitization, prompt hardening, and human-in-the-loop validation for critical operations.
 
