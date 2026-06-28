@@ -348,9 +348,9 @@ Internet-Draft                   AI-NPT                         May 2026
                   +-------------+           ^             | | DUT  | |
                           ^                 |             | +------+ |
                           |                 |             +----------+
-                    +-----+-----------------+-----+           | Test
-                    |  Feedback, Review, and       |<---------+ Report
-                    |        Refinement            |
+                    +-----+-----------------+------+          | Test
+                    |    Feedback, Review, and     |<---------+ Report
+                    |         Refinement           |
                     +------------------------------+
 
    The framework has five stages:

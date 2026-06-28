@@ -162,9 +162,9 @@ A typical AI-assisted network protocol testing framework is illustrated as follo
                    +-------------+           ^             | | DUT  | |
                            ^                 |             | +------+ |
                            |                 |             +----------+
-                     +-----+-----------------+-----+           | Test
-                     |  Feedback, Review, and       |<---------+ Report
-                     |        Refinement            |
+                     +-----+-----------------+------+          | Test
+                     |    Feedback, Review, and     |<---------+ Report
+                     |         Refinement           |
                      +------------------------------+
 
 The framework has five stages:
