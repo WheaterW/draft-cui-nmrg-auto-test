@@ -5,11 +5,11 @@
 Network Management Research Group                                 Y. Cui
 Internet-Draft                                                    Y. Wei
 Intended status: Informational                                    K. Chi
-Expires: 30 November 2026                                         X. Xie
+Expires: 30 December 2026                                         X. Xie
                                                      Tsinghua University
                                                                S. Prabhu
                                                                    Nokia
-                                                             29 May 2026
+                                                            28 June 2026
 
 
 A Framework for AI-Assisted Network Protocol Testing from Specifications
@@ -23,13 +23,19 @@ Abstract
    protocol representation, test generation, executable tester and
    Device Under Test (DUT) artifacts, and execution feedback.
 
-   The central problem addressed by this document is how to preserve
-   test-relevant protocol semantics as a testing workflow moves from
-   natural-language specifications to executable tests.  The document
-   discusses design motivations, trade-offs, human review points,
+   The testing workflow separates two concerns that are often conflated.
+   Coverage scoping identifies, from the structured protocol
+   representation and the test requirements for a given campaign, the
+   set of protocol behaviors that a test suite intends to exercise —
+   defining what needs to be tested and documenting what is excluded and
+   why.  Test case generation then produces concrete test cases,
+   oracles, and executable artifacts from that scope.  The iterative
+   feedback loop distinguishes whether a failure or coverage gap
+   originates from an error in the generated artifacts or from an
+   incomplete scope definition, so that each refinement cycle targets
+   the correct cause — checking the more concrete before the more
+   abstract.  The document discusses design motivations, trade-offs,
    illustrative cases, and open research challenges for this workflow.
-   It does not define a protocol, a test case format, or a maturity-
-   level classification.
 
 About This Document
 
@@ -45,18 +51,15 @@ About This Document
    https://datatracker.ietf.org/rg/nmrg/.  Subscribe at
    https://www.ietf.org/mailman/listinfo/nmrg/.
 
+
+
+Cui, et al.             Expires 30 December 2026                [Page 1]
+
+Internet-Draft                   AI-NPT                        June 2026
+
+
    Source for this draft and an issue tracker can be found at
    https://github.com/WheaterW/draft-cui-nmrg-auto-test.
-
-
-
-
-
-
-Cui, et al.             Expires 30 November 2026                [Page 1]
-
-Internet-Draft                   AI-NPT                         May 2026
-
 
 Status of This Memo
 
@@ -73,7 +76,7 @@ Status of This Memo
    time.  It is inappropriate to use Internet-Drafts as reference
    material or to cite them other than as "work in progress."
 
-   This Internet-Draft will expire on 30 November 2026.
+   This Internet-Draft will expire on 30 December 2026.
 
 Copyright Notice
 
@@ -94,35 +97,36 @@ Table of Contents
    4.  Network Protocol Testing Scenarios  . . . . . . . . . . . . .   5
    5.  Key Elements of Network Protocol Testing  . . . . . . . . . .   5
    6.  Framework Overview  . . . . . . . . . . . . . . . . . . . . .   6
-     6.1.  Structured Protocol Representation  . . . . . . . . . . .   7
-     6.2.  Test Case Generation  . . . . . . . . . . . . . . . . . .   9
-     6.3.  Executable Artifact Generation and Feedback . . . . . . .  10
-   7.  Design Considerations and Trade-offs  . . . . . . . . . . . .  11
+     6.1.  Structured Protocol Representation  . . . . . . . . . . .   8
+     6.2.  Coverage Scoping  . . . . . . . . . . . . . . . . . . . .   9
+     6.3.  Test Case Generation  . . . . . . . . . . . . . . . . . .  10
+     6.4.  Executable Artifact Generation and Feedback . . . . . . .  11
+   7.  Design Considerations and Trade-offs  . . . . . . . . . . . .  12
      7.1.  End-to-End Prompting vs. Structured Workflow
-           Boundaries  . . . . . . . . . . . . . . . . . . . . . . .  11
-     7.2.  Test-Relevant Representation vs. Complete Formal Model  .  11
-     7.3.  Template Breadth vs. Parameter Depth  . . . . . . . . . .  11
-     7.4.  Feedback Automation vs. Human Confirmation  . . . . . . .  12
-     7.5.  Specification Scope vs. Implementation Scope  . . . . . .  12
-   8.  Cases and Experience  . . . . . . . . . . . . . . . . . . . .  12
-     8.1.  Case 1: Update-Aware Testing  . . . . . . . . . . . . . .  12
+           Boundaries  . . . . . . . . . . . . . . . . . . . . . . .  12
+     7.2.  Test-Relevant Representation vs. Complete Formal Model  .  12
+     7.3.  Template Breadth vs. Parameter Depth  . . . . . . . . . .  13
 
 
 
-Cui, et al.             Expires 30 November 2026                [Page 2]
+Cui, et al.             Expires 30 December 2026                [Page 2]
 
-Internet-Draft                   AI-NPT                         May 2026
+Internet-Draft                   AI-NPT                        June 2026
 
 
-     8.2.  Case 2: Specification-Derived Bug Exposure  . . . . . . .  12
-     8.3.  Case 3: Parameterized Boundary Testing  . . . . . . . . .  13
-     8.4.  Implementation Experience . . . . . . . . . . . . . . . .  13
-   9.  Research Challenges . . . . . . . . . . . . . . . . . . . . .  13
-   10. Security Considerations . . . . . . . . . . . . . . . . . . .  14
-   11. IANA Considerations . . . . . . . . . . . . . . . . . . . . .  15
-   Acknowledgments . . . . . . . . . . . . . . . . . . . . . . . . .  15
-   Contributors  . . . . . . . . . . . . . . . . . . . . . . . . . .  15
-   Authors' Addresses  . . . . . . . . . . . . . . . . . . . . . . .  15
+     7.4.  Feedback Automation vs. Human Confirmation  . . . . . . .  13
+     7.5.  Specification Scope vs. Implementation Scope  . . . . . .  13
+   8.  Cases and Experience  . . . . . . . . . . . . . . . . . . . .  13
+     8.1.  Case 1: Update-Aware Testing  . . . . . . . . . . . . . .  13
+     8.2.  Case 2: Specification-Derived Bug Exposure  . . . . . . .  14
+     8.3.  Case 3: Parameterized Boundary Testing  . . . . . . . . .  14
+     8.4.  Implementation Experience . . . . . . . . . . . . . . . .  14
+   9.  Research Challenges . . . . . . . . . . . . . . . . . . . . .  15
+   10. Security Considerations . . . . . . . . . . . . . . . . . . .  16
+   11. IANA Considerations . . . . . . . . . . . . . . . . . . . . .  16
+   Acknowledgments . . . . . . . . . . . . . . . . . . . . . . . . .  16
+   Contributors  . . . . . . . . . . . . . . . . . . . . . . . . . .  16
+   Authors' Addresses  . . . . . . . . . . . . . . . . . . . . . . .  16
 
 1.  Introduction
 
@@ -149,26 +153,33 @@ Internet-Draft                   AI-NPT                         May 2026
    and result oracles.  Small losses of protocol semantics across these
    stages can create invalid tests or misleading failure reports.
 
+
+
+
+
+
+
+
+
+
+
+
+
+Cui, et al.             Expires 30 December 2026                [Page 3]
+
+Internet-Draft                   AI-NPT                        June 2026
+
+
    This document therefore focuses on a framework question: how can a
    testing workflow carry test-relevant information from protocol
    specifications to executable test artifacts while remaining auditable
    and controllable?  The framework decomposes the workflow into
-   structured protocol representation, test generation, executable
-   artifact generation, test execution, and feedback-based refinement.
-   At each stage boundary, the important handoff is not only the
-   generated artifact, but also the protocol semantics, assumptions, and
-   review points that are passed to the next stage.
-
-
-
-
-
-
-
-Cui, et al.             Expires 30 November 2026                [Page 3]
-
-Internet-Draft                   AI-NPT                         May 2026
-
+   structured protocol representation, coverage scoping, test case
+   generation, executable artifact generation, test execution, and
+   feedback-based refinement.  At each stage boundary, the important
+   handoff is not only the generated artifact, but also the protocol
+   semantics, assumptions, and review points that are passed to the next
+   stage.
 
 2.  Problem Scope and Assumptions
 
@@ -189,10 +200,13 @@ Internet-Draft                   AI-NPT                         May 2026
    The framework also assumes that AI-assisted components are not
    trusted as fully autonomous oracles.  Human review remains important
    at workflow boundaries, especially for structured representation
-   inspection, test oracle validation, executable artifact validation,
-   and final bug confirmation.  The intended role of automation is to
-   reduce repetitive expert effort while preserving traceability and
-   expert control.
+   inspection, coverage scope acceptance, test oracle validation,
+   executable artifact validation, and final bug confirmation.  The
+   intended role of automation is to reduce repetitive expert effort
+   while preserving traceability and expert control.
+
+   This document does not define a protocol, a test case format, or a
+   maturity-level classification.
 
 3.  Definitions and Acronyms
 
@@ -204,6 +218,14 @@ Internet-Draft                   AI-NPT                         May 2026
    and analyzes received packets to evaluate protocol compliance and
    performance.
 
+
+
+
+Cui, et al.             Expires 30 December 2026                [Page 4]
+
+Internet-Draft                   AI-NPT                        June 2026
+
+
    LLM: Large Language Model
 
    FSM: Finite State Machine
@@ -214,17 +236,6 @@ Internet-Draft                   AI-NPT                         May 2026
 
    Test Case: A specification of conditions and inputs to evaluate a
    protocol behavior.
-
-
-
-
-
-
-
-Cui, et al.             Expires 30 November 2026                [Page 4]
-
-Internet-Draft                   AI-NPT                         May 2026
-
 
    Tester Script: An executable program or sequence of instructions that
    controls a protocol tester to generate test traffic, interact with
@@ -264,6 +275,13 @@ Internet-Draft                   AI-NPT                         May 2026
        routers, and firewalls) or a virtual network device (such as
        FRRouting (FRR) routers and others).
 
+
+
+Cui, et al.             Expires 30 December 2026                [Page 5]
+
+Internet-Draft                   AI-NPT                        June 2026
+
+
    2.  Tester: A protocol tester is a specialized network device that
        usually implements a standard and comprehensive protocol stack.
        It can generate test traffic, collect and analyze incoming
@@ -274,14 +292,6 @@ Internet-Draft                   AI-NPT                         May 2026
    3.  Test Cases: Protocol test cases can cover various categories,
        including protocol conformance tests, functional tests, and
        performance tests.  Each test case typically includes essential
-
-
-
-Cui, et al.             Expires 30 November 2026                [Page 5]
-
-Internet-Draft                   AI-NPT                         May 2026
-
-
        elements such as test topology, step-by-step procedures, and
        expected results.  A well-defined test case also includes
        detailed configuration parameters.
@@ -315,64 +325,81 @@ Internet-Draft                   AI-NPT                         May 2026
 
 6.  Framework Overview
 
-   A typical AI-assisted network protocol testing framework is
-   illustrated as follows.
+   The AI-assisted network protocol testing framework is illustrated in
+   the figure below.  Test requirements are an external input, provided
+   by the testing team for each campaign.
 
 
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-Cui, et al.             Expires 30 November 2026                [Page 6]
+Cui, et al.             Expires 30 December 2026                [Page 6]
 
-Internet-Draft                   AI-NPT                         May 2026
+Internet-Draft                   AI-NPT                        June 2026
 
 
-                                                          +----------+
-                  +-------------+   +-----------------+   | Test Env.|
-     +--------+   |  Protocol   |   |  Tester Script  |   | +------+ |
-     |Protocol|   |Formalization|   |       and       |   | |Tester| |
-     | Spec.  |-->|     and     |-->|DUT Configuration|-->| +-^----+ |
-     +--------+   |  Test Case  |   |   Generation    |   |   |  |   |
-                  | Generation  |   +-----------------+   | +----v-+ |
-                  +-------------+           ^             | | DUT  | |
-                          ^                 |             | +------+ |
-                          |                 |             +----------+
-                    +-----+-----------------+------+          | Test
-                    |    Feedback, Review, and     |<---------+ Report
-                    |         Refinement           |
-                    +------------------------------+
+   +------------------------+    +-----------------------+
+   | Protocol Specification |    |   Test Requirements   |
+   +------------+-----------+    +-----------+-----------+
+                |                            |
+   +------------v----------------------------v-----------+
+   |  +----------------------+      +-----------------+  |
+   |  | Structured Protocol  +----->|     Coverage    |  |
+   |  |   Representation     |      |     Scoping     |  |
+   |  +----------------------+      +--------+--------+  |
+   |                                         |           |
+   |  +----------------------+      +--------v--------+  |
+   |  |   Test Artifacts     |<-----+    Test Case    |  |
+   |  |     Generation       |      |    Generation   |  |
+   |  +----------------------+      +-----------------+  |
+   +--------+----------------------------------^---------+
+            |                                  |
+   +--------v------+                  +--------+---------+
+   |     Test      +--->  Test  ----->|   Feedback and   |
+   |   Execution   |     Reports      |    Refinement    |
+   +---------------+                  +------------------+
 
-   The framework has five stages:
+   The framework has six stages:
 
    1.  Structured protocol representation: transform specification text
        into a test-relevant representation.
 
-   2.  Test case generation: derive test points, templates, parameters,
-       and oracles.
+   2.  Coverage scoping: reconcile the representation with test
+       requirements to produce an explicit, reviewable coverage scope.
 
-   3.  Executable artifact generation: translate abstract tests into
-       coordinated tester scripts and DUT configurations.
+   3.  Test case generation: expand each included scope item into test
+       templates, parameters, and oracles.
 
-   4.  Test execution: run the generated artifacts in a controlled test
+   4.  Test artifacts generation: translate test cases into coordinated
+       tester scripts and DUT configurations.
+
+   5.  Test execution: run the generated artifacts in a controlled test
        environment.
 
-   5.  Feedback and refinement: analyze failures and decide whether to
-       refine tests, artifacts, or bug reports.
+   6.  Feedback and refinement: analyze failures and decide whether to
+       refine artifacts, scope, or bug reports.
 
    The output of each stage becomes a handoff to the next stage.  For
    this reason, each stage can expose not only generated content, but
    also source references, assumptions, constraints, and review status.
+
+   The six stages support two complementary cycles.  In the forward
+   cycle, coverage scoping and test case generation produce the test
+   suite from the specification and the test requirements.  In the
+
+
+
+Cui, et al.             Expires 30 December 2026                [Page 7]
+
+Internet-Draft                   AI-NPT                        June 2026
+
+
+   backward cycle, execution feedback is analyzed to distinguish between
+   an error in the generated artifacts and an incomplete coverage scope
+   — checking the more concrete cause before the more abstract one.  An
+   AI agent can assist in both cycles, but human review gates remain at
+   the acceptance of the coverage scope, the validation of oracles, and
+   the confirmation of protocol defects.
 
 6.1.  Structured Protocol Representation
 
@@ -382,17 +409,6 @@ Internet-Draft                   AI-NPT                         May 2026
    sections and sometimes across multiple update documents.  Directly
    generating executable tests from such text risks losing details that
    determine whether a test is valid.
-
-
-
-
-
-
-
-Cui, et al.             Expires 30 November 2026                [Page 7]
-
-Internet-Draft                   AI-NPT                         May 2026
-
 
    The framework therefore introduces a structured protocol
    representation as an intermediate artifact between specification text
@@ -426,6 +442,14 @@ Internet-Draft                   AI-NPT                         May 2026
    update relationships.  This step can combine rule-based extraction
    with AI-assisted summarization.
 
+
+
+
+Cui, et al.             Expires 30 December 2026                [Page 8]
+
+Internet-Draft                   AI-NPT                        June 2026
+
+
    Second, module induction groups related text into protocol modules,
    such as message formats, state machines, algorithms, and event-action
    rules.  Each module remains linked to the source text used to
@@ -442,14 +466,6 @@ Internet-Draft                   AI-NPT                         May 2026
    expresses the update as a differential change to the base
    representation.
 
-
-
-
-Cui, et al.             Expires 30 November 2026                [Page 8]
-
-Internet-Draft                   AI-NPT                         May 2026
-
-
    The main design trade-off is between completeness and usefulness.  A
    fully formal protocol model can be expensive to build and difficult
    to apply across many protocols.  A test-relevant representation is
@@ -457,13 +473,61 @@ Internet-Draft                   AI-NPT                         May 2026
    semantics needed to generate valid tests, derive oracles, and trace
    failures back to specifications.
 
-6.2.  Test Case Generation
+6.2.  Coverage Scoping
 
-   Once a structured protocol representation is available, test
-   generation identifies test points and expands them into test cases.
-   Test points can be derived from normative statements, message
-   constraints, state transitions, algorithms, error handling
-   requirements, and update deltas.
+   A structured protocol representation describes what a protocol
+   specification defines.  It does not, by itself, state which of those
+   definitions a particular test campaign intends to cover.  Coverage
+   scoping is the activity of selecting, from the representation, the
+   set of protocol behaviors that a test suite will exercise — and of
+   documenting which items are excluded and why.
+
+   Coverage scoping takes two inputs: the structured protocol
+   representation, and the test requirements for the campaign.  Test
+   requirements are external to the framework; they are provided by the
+   testing team and reflect the purpose of the test campaign (e.g., a
+   procurement specification, a regression policy, or a security audit
+   scope).  They define the objectives, constraints, and priorities that
+   guide scoping decisions.
+
+   The output is a coverage scope: a structured decision record in which
+   each referenced protocol behavior is marked as included or excluded,
+   assigned a priority, and — when excluded — accompanied by a
+   documented reason.  Reasons can include specification deprecation by
+   a later RFC, exclusion by the test objective, hardware or time
+   constraints, or other testability limits.  The scope references items
+   in the representation without duplicating their definitions; it adds
+   the decisions that the representation cannot express.
+
+
+
+Cui, et al.             Expires 30 December 2026                [Page 9]
+
+Internet-Draft                   AI-NPT                        June 2026
+
+
+   The coverage scope serves three purposes.  First, it replaces an
+   unverifiable coverage percentage with an inspectable coverage plan: a
+   human reviewer can assess whether the set of included and excluded
+   behaviors is acceptable for the test campaign's objective.  Second,
+   it provides the input to test case generation, so that generation
+   focuses on how to test rather than what to test.  Third, when a test
+   failure or coverage gap is found during iterative refinement, the
+   scope allows the framework to distinguish between an error in the
+   generated artifacts and an incomplete scope definition.
+
+   An AI agent can assist in producing an initial coverage scope by
+   traversing the representation, applying the test requirements, and
+   proposing inclusion or exclusion with documented reasoning.
+   Acceptance of the scope remains a human review gate.
+
+6.3.  Test Case Generation
+
+   Once a coverage scope has been established, test generation expands
+   each included scope item into test cases.  Test points can draw on
+   normative statements, message constraints, state transitions,
+   algorithms, error handling requirements, and update deltas from the
+   representation.
 
    The framework separates test templates from test parameters.
 
@@ -490,21 +554,20 @@ Internet-Draft                   AI-NPT                         May 2026
    computation, especially when expected behavior depends on route
    selection, timers, path attributes, or other protocol algorithms.
 
+
+
+
+Cui, et al.             Expires 30 December 2026               [Page 10]
+
+Internet-Draft                   AI-NPT                        June 2026
+
+
    This separation is a key design choice.  Templates provide breadth
    across protocol functions and test scenarios.  Parameters provide
    depth across value spaces and boundary conditions.  Equivalence
    partitioning or similar reduction techniques can then group parameter
    combinations that exercise the same protocol behavior, reducing
    redundant execution without discarding meaningful coverage.
-
-
-
-
-
-Cui, et al.             Expires 30 November 2026                [Page 9]
-
-Internet-Draft                   AI-NPT                         May 2026
-
 
    Generated test cases still require review.  Correctness means that a
    test reflects the intended protocol semantics.  Coverage means that
@@ -514,7 +577,7 @@ Internet-Draft                   AI-NPT                         May 2026
    and oracles, systematic evaluation of correctness and coverage
    remains an open research challenge.
 
-6.3.  Executable Artifact Generation and Feedback
+6.4.  Executable Artifact Generation and Feedback
 
    Executable artifact generation translates abstract test cases into
    runnable tester scripts and DUT configurations.  This step is
@@ -543,6 +606,18 @@ Internet-Draft                   AI-NPT                         May 2026
    the intended test logic and whether tester and DUT configurations are
    mutually consistent.
 
+
+
+
+
+
+
+
+Cui, et al.             Expires 30 December 2026               [Page 11]
+
+Internet-Draft                   AI-NPT                        June 2026
+
+
    Execution feedback requires careful interpretation.  A failed test
    does not always indicate a protocol implementation defect.  It can be
    caused by an invalid test case, an incorrect oracle, a generated
@@ -553,14 +628,6 @@ Internet-Draft                   AI-NPT                         May 2026
    *  likely DUT protocol violation
 
    *  invalid or ambiguous test case
-
-
-
-
-Cui, et al.             Expires 30 November 2026               [Page 10]
-
-Internet-Draft                   AI-NPT                         May 2026
-
 
    *  executable artifact error
 
@@ -600,6 +667,13 @@ Internet-Draft                   AI-NPT                         May 2026
    claim: it aims to preserve the semantics needed for testing.  This is
    less complete, but more feasible for broad protocol coverage.
 
+
+
+Cui, et al.             Expires 30 December 2026               [Page 12]
+
+Internet-Draft                   AI-NPT                        June 2026
+
+
 7.3.  Template Breadth vs. Parameter Depth
 
    Generating many concrete tests directly can produce large and
@@ -607,16 +681,6 @@ Internet-Draft                   AI-NPT                         May 2026
    functional coverage and deep parameter exploration to scale
    independently.  The cost is that the framework also manages parameter
    reduction, oracle computation, and test-suite scheduling.
-
-
-
-
-
-
-Cui, et al.             Expires 30 November 2026               [Page 11]
-
-Internet-Draft                   AI-NPT                         May 2026
-
 
 7.4.  Feedback Automation vs. Human Confirmation
 
@@ -659,6 +723,13 @@ Internet-Draft                   AI-NPT                         May 2026
    differential changes over existing protocol modules, not as
    standalone specifications.
 
+
+
+Cui, et al.             Expires 30 December 2026               [Page 13]
+
+Internet-Draft                   AI-NPT                        June 2026
+
+
 8.2.  Case 2: Specification-Derived Bug Exposure
 
    A specification can define behavior that is easy to overlook in
@@ -666,13 +737,6 @@ Internet-Draft                   AI-NPT                         May 2026
    default route is expected to be originated, advertised, or accepted.
    A generated test can configure the relevant condition, capture
    protocol updates, and check whether the expected route appears.
-
-
-
-Cui, et al.             Expires 30 November 2026               [Page 12]
-
-Internet-Draft                   AI-NPT                         May 2026
-
 
    The lesson is that systematic extraction of test points from
    structured protocol behavior can expose gaps in manually curated test
@@ -713,6 +777,15 @@ Internet-Draft                   AI-NPT                         May 2026
    mainly supports the need for structured workflow boundaries, review
    points, and test-suite management.
 
+
+
+
+
+Cui, et al.             Expires 30 December 2026               [Page 14]
+
+Internet-Draft                   AI-NPT                        June 2026
+
+
 9.  Research Challenges
 
    Several research challenges remain open for AI-assisted protocol
@@ -722,17 +795,14 @@ Internet-Draft                   AI-NPT                         May 2026
    for whether a structured protocol representation preserves the
    semantics needed for testing.
 
-
-
-
-Cui, et al.             Expires 30 November 2026               [Page 13]
-
-Internet-Draft                   AI-NPT                         May 2026
-
-
-   Test case correctness and coverage: Protocol test cases combine
-   natural language, topology, configuration, packets, and oracles,
-   making correctness and coverage hard to measure systematically.
+   Coverage scope validation and completeness: A coverage scope
+   reconciles test requirements with a structured protocol
+   representation, but both are ultimately grounded in natural-language
+   specifications for which no machine-readable definition of "complete
+   coverage" exists.  Methods for assessing whether a coverage scope
+   adequately captures the protocol behaviors relevant to a given test
+   objective, and for measuring how completely a derived test suite
+   exercises its stated scope, remain open.
 
    Update-aware testing: RFC updates, extensions, and deprecations
    require methods to localize changes and propagate them to affected
@@ -763,6 +833,15 @@ Internet-Draft                   AI-NPT                         May 2026
    specification text, representation modules, generated test cases,
    parameters, and executable artifacts.
 
+
+
+
+
+Cui, et al.             Expires 30 December 2026               [Page 15]
+
+Internet-Draft                   AI-NPT                        June 2026
+
+
    Safety and security: Automatically generated code and configuration
    can disrupt test environments or create misleading reports.
    Sandboxing, validation, and human approval remain necessary for high-
@@ -778,18 +857,12 @@ Internet-Draft                   AI-NPT                         May 2026
        checking, semantic verification against protocol constraints, and
        dry-run execution in sandboxed environments.
 
-
-
-
-Cui, et al.             Expires 30 November 2026               [Page 14]
-
-Internet-Draft                   AI-NPT                         May 2026
-
-
-   2.  AI-Assisted Component Risks: LLMs can produce incorrect or
-       insecure outputs due to their probabilistic nature or prompt
-       manipulation.  Mitigation: Apply input sanitization, prompt
-       hardening, and human-in-the-loop validation for critical
+   2.  AI-Assisted Component Risks: LLMs and AI agents can produce
+       incorrect or insecure outputs due to their probabilistic nature
+       or prompt manipulation, and the risk compounds when an agent
+       chains multiple tool calls across workflow stages without
+       intermediate review.  Mitigation: Apply input sanitization,
+       prompt hardening, and human-in-the-loop validation for critical
        operations.
 
 11.  IANA Considerations
@@ -817,6 +890,14 @@ Authors' Addresses
    Email: cuiyong@tsinghua.edu.cn
 
 
+
+
+
+Cui, et al.             Expires 30 December 2026               [Page 16]
+
+Internet-Draft                   AI-NPT                        June 2026
+
+
    Yunze Wei
    Tsinghua University
    Email: wyz23@mails.tsinghua.edu.cn
@@ -834,14 +915,6 @@ Authors' Addresses
 
    Shailesh Prabhu
    Nokia
-
-
-
-Cui, et al.             Expires 30 November 2026               [Page 15]
-
-Internet-Draft                   AI-NPT                         May 2026
-
-
    Email: shailesh.prabhu@nokia.com
 
 
@@ -876,21 +949,4 @@ Internet-Draft                   AI-NPT                         May 2026
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-Cui, et al.             Expires 30 November 2026               [Page 16]
+Cui, et al.             Expires 30 December 2026               [Page 17]

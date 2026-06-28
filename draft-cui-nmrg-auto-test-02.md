@@ -74,7 +74,7 @@ informative:
 
 This document describes a framework for AI-assisted network protocol testing from protocol specifications.  The framework is organized around the workflow that connects specification text, structured protocol representation, test generation, executable tester and Device Under Test (DUT) artifacts, and execution feedback.
 
-The central problem addressed by this document is how to preserve test-relevant protocol semantics as a testing workflow moves from natural-language specifications to executable tests.  The document discusses design motivations, trade-offs, human review points, illustrative cases, and open research challenges for this workflow.  It does not define a protocol, a test case format, or a maturity-level classification.
+The testing workflow separates two concerns that are often conflated.  Coverage scoping identifies, from the structured protocol representation and the test requirements for a given campaign, the set of protocol behaviors that a test suite intends to exercise — defining what needs to be tested and documenting what is excluded and why.  Test case generation then produces concrete test cases, oracles, and executable artifacts from that scope.  The iterative feedback loop distinguishes whether a failure or coverage gap originates from an error in the generated artifacts or from an incomplete scope definition, so that each refinement cycle targets the correct cause — checking the more concrete before the more abstract.  The document discusses design motivations, trade-offs, illustrative cases, and open research challenges for this workflow.
 
 --- middle
 
@@ -86,7 +86,7 @@ Traditional protocol testing remains largely manual.  Engineers read long specif
 
 Recent advances in artificial intelligence, especially Large Language Models (LLMs), create new opportunities for automating parts of this workflow.  However, protocol testing is not a generic text-to-code task.  A protocol test begins with requirements distributed across specification text and often ends as a coordinated set of tester actions, DUT configurations, timing assumptions, packet observations, and result oracles.  Small losses of protocol semantics across these stages can create invalid tests or misleading failure reports.
 
-This document therefore focuses on a framework question: how can a testing workflow carry test-relevant information from protocol specifications to executable test artifacts while remaining auditable and controllable?  The framework decomposes the workflow into structured protocol representation, test generation, executable artifact generation, test execution, and feedback-based refinement.  At each stage boundary, the important handoff is not only the generated artifact, but also the protocol semantics, assumptions, and review points that are passed to the next stage.
+This document therefore focuses on a framework question: how can a testing workflow carry test-relevant information from protocol specifications to executable test artifacts while remaining auditable and controllable?  The framework decomposes the workflow into structured protocol representation, coverage scoping, test case generation, executable artifact generation, test execution, and feedback-based refinement.  At each stage boundary, the important handoff is not only the generated artifact, but also the protocol semantics, assumptions, and review points that are passed to the next stage.
 
 # Problem Scope and Assumptions
 
@@ -94,7 +94,9 @@ This document focuses on specification-derived protocol testing.  The primary in
 
 The framework is mainly intended for conformance, functional, robustness, regression, and related protocol-behavior tests.  It does not attempt to cover all implementation-specific defects.  Bugs in local management channels, proprietary command-line behavior, vendor-specific configuration subsystems, or non-standard extensions can require additional input documents such as vendor manuals, YANG models, implementation notes, or operational policies.
 
-The framework also assumes that AI-assisted components are not trusted as fully autonomous oracles.  Human review remains important at workflow boundaries, especially for structured representation inspection, test oracle validation, executable artifact validation, and final bug confirmation.  The intended role of automation is to reduce repetitive expert effort while preserving traceability and expert control.
+The framework also assumes that AI-assisted components are not trusted as fully autonomous oracles.  Human review remains important at workflow boundaries, especially for structured representation inspection, coverage scope acceptance, test oracle validation, executable artifact validation, and final bug confirmation.  The intended role of automation is to reduce repetitive expert effort while preserving traceability and expert control.
+
+This document does not define a protocol, a test case format, or a maturity-level classification.
 
 # Definitions and Acronyms
 
@@ -150,32 +152,42 @@ Protocol test cases can cover various categories, including protocol conformance
 
 # Framework Overview
 
-A typical AI-assisted network protocol testing framework is illustrated as follows.
+The AI-assisted network protocol testing framework is illustrated in the figure below.  Test requirements are an external input, provided by the testing team for each campaign.
 
-                                                           +----------+
-                   +-------------+   +-----------------+   | Test Env.|
-      +--------+   |  Protocol   |   |  Tester Script  |   | +------+ |
-      |Protocol|   |Formalization|   |       and       |   | |Tester| |
-      | Spec.  |-->|     and     |-->|DUT Configuration|-->| +-^----+ |
-      +--------+   |  Test Case  |   |   Generation    |   |   |  |   |
-                   | Generation  |   +-----------------+   | +----v-+ |
-                   +-------------+           ^             | | DUT  | |
-                           ^                 |             | +------+ |
-                           |                 |             +----------+
-                     +-----+-----------------+------+          | Test
-                     |    Feedback, Review, and     |<---------+ Report
-                     |         Refinement           |
-                     +------------------------------+
+    +------------------------+    +-----------------------+
+    | Protocol Specification |    |   Test Requirements   |
+    +------------+-----------+    +-----------+-----------+
+                 |                            |
+    +------------v----------------------------v-----------+
+    |  +----------------------+      +-----------------+  |
+    |  | Structured Protocol  +----->|     Coverage    |  |
+    |  |   Representation     |      |     Scoping     |  |
+    |  +----------------------+      +--------+--------+  |
+    |                                         |           |
+    |  +----------------------+      +--------v--------+  |
+    |  |   Test Artifacts     |<-----+    Test Case    |  |
+    |  |     Generation       |      |    Generation   |  |
+    |  +----------------------+      +-----------------+  |
+    +--------+----------------------------------^---------+
+             |                                  |
+    +--------v------+                  +--------+---------+
+    |     Test      +--->  Test  ----->|   Feedback and   |
+    |   Execution   |     Reports      |    Refinement    |
+    +---------------+                  +------------------+
 
-The framework has five stages:
 
+The framework has six stages:
+    
 1. Structured protocol representation: transform specification text into a test-relevant representation.
-2. Test case generation: derive test points, templates, parameters, and oracles.
-3. Executable artifact generation: translate abstract tests into coordinated tester scripts and DUT configurations.
-4. Test execution: run the generated artifacts in a controlled test environment.
-5. Feedback and refinement: analyze failures and decide whether to refine tests, artifacts, or bug reports.
+2. Coverage scoping: reconcile the representation with test requirements to produce an explicit, reviewable coverage scope.
+3. Test case generation: expand each included scope item into test templates, parameters, and oracles.
+4. Test artifacts generation: translate test cases into coordinated tester scripts and DUT configurations.
+5. Test execution: run the generated artifacts in a controlled test environment.
+6. Feedback and refinement: analyze failures and decide whether to refine artifacts, scope, or bug reports.
 
 The output of each stage becomes a handoff to the next stage.  For this reason, each stage can expose not only generated content, but also source references, assumptions, constraints, and review status.
+
+The six stages support two complementary cycles.  In the forward cycle, coverage scoping and test case generation produce the test suite from the specification and the test requirements.  In the backward cycle, execution feedback is analyzed to distinguish between an error in the generated artifacts and an incomplete coverage scope — checking the more concrete cause before the more abstract one.  An AI agent can assist in both cycles, but human review gates remain at the acceptance of the coverage scope, the validation of oracles, and the confirmation of protocol defects.
 
 ## Structured Protocol Representation
 
@@ -206,9 +218,21 @@ Protocol updates require special handling.  Update documents often add, modify, 
 
 The main design trade-off is between completeness and usefulness.  A fully formal protocol model can be expensive to build and difficult to apply across many protocols.  A test-relevant representation is less ambitious, but can be more practical if it preserves the semantics needed to generate valid tests, derive oracles, and trace failures back to specifications.
 
+## Coverage Scoping
+
+A structured protocol representation describes what a protocol specification defines.  It does not, by itself, state which of those definitions a particular test campaign intends to cover.  Coverage scoping is the activity of selecting, from the representation, the set of protocol behaviors that a test suite will exercise — and of documenting which items are excluded and why.
+
+Coverage scoping takes two inputs: the structured protocol representation, and the test requirements for the campaign.  Test requirements are external to the framework; they are provided by the testing team and reflect the purpose of the test campaign (e.g., a procurement specification, a regression policy, or a security audit scope).  They define the objectives, constraints, and priorities that guide scoping decisions.
+
+The output is a coverage scope: a structured decision record in which each referenced protocol behavior is marked as included or excluded, assigned a priority, and — when excluded — accompanied by a documented reason.  Reasons can include specification deprecation by a later RFC, exclusion by the test objective, hardware or time constraints, or other testability limits.  The scope references items in the representation without duplicating their definitions; it adds the decisions that the representation cannot express.
+
+The coverage scope serves three purposes.  First, it replaces an unverifiable coverage percentage with an inspectable coverage plan: a human reviewer can assess whether the set of included and excluded behaviors is acceptable for the test campaign's objective.  Second, it provides the input to test case generation, so that generation focuses on how to test rather than what to test.  Third, when a test failure or coverage gap is found during iterative refinement, the scope allows the framework to distinguish between an error in the generated artifacts and an incomplete scope definition.
+
+An AI agent can assist in producing an initial coverage scope by traversing the representation, applying the test requirements, and proposing inclusion or exclusion with documented reasoning.  Acceptance of the scope remains a human review gate.
+
 ## Test Case Generation
 
-Once a structured protocol representation is available, test generation identifies test points and expands them into test cases.  Test points can be derived from normative statements, message constraints, state transitions, algorithms, error handling requirements, and update deltas.
+Once a coverage scope has been established, test generation expands each included scope item into test cases.  Test points can draw on normative statements, message constraints, state transitions, algorithms, error handling requirements, and update deltas from the representation.
 
 The framework separates test templates from test parameters.
 
@@ -311,7 +335,7 @@ Several research challenges remain open for AI-assisted protocol testing.
 
 Representation fidelity: The community lacks widely accepted metrics for whether a structured protocol representation preserves the semantics needed for testing.
 
-Test case correctness and coverage: Protocol test cases combine natural language, topology, configuration, packets, and oracles, making correctness and coverage hard to measure systematically.
+Coverage scope validation and completeness: A coverage scope reconciles test requirements with a structured protocol representation, but both are ultimately grounded in natural-language specifications for which no machine-readable definition of "complete coverage" exists.  Methods for assessing whether a coverage scope adequately captures the protocol behaviors relevant to a given test objective, and for measuring how completely a derived test suite exercises its stated scope, remain open.
 
 Update-aware testing: RFC updates, extensions, and deprecations require methods to localize changes and propagate them to affected tests.
 
@@ -335,7 +359,7 @@ Safety and security: Automatically generated code and configuration can disrupt 
 
 1. Execution of Unverified Generated Code: Automatically generated test scripts or configurations (e.g., CLI commands, tester control scripts) can include incorrect or harmful instructions that misconfigure devices or disrupt test environments. Mitigation: Validate all generated artifacts, including syntax checking, semantic verification against protocol constraints, and dry-run execution in sandboxed environments.
 
-2. AI-Assisted Component Risks: LLMs can produce incorrect or insecure outputs due to their probabilistic nature or prompt manipulation. Mitigation: Apply input sanitization, prompt hardening, and human-in-the-loop validation for critical operations.
+2. AI-Assisted Component Risks: LLMs and AI agents can produce incorrect or insecure outputs due to their probabilistic nature or prompt manipulation, and the risk compounds when an agent chains multiple tool calls across workflow stages without intermediate review. Mitigation: Apply input sanitization, prompt hardening, and human-in-the-loop validation for critical operations.
 
 # IANA Considerations
 
