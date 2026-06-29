@@ -27,7 +27,7 @@ docname: draft-cui-nmrg-auto-test-02
 submissiontype: IRTF
 number:
 date:
-consensus: true
+consensus:
 v: 3
 area: Operations and Management
 workgroup: Network Management Research Group
@@ -69,12 +69,21 @@ author:
 normative:
 
 informative:
+  RFC2453:
+  RFC4271:
+  RFC9774:
+  FRRouting:
+    title: "FRRouting"
+    target: https://frrouting.org/
 
 --- abstract
 
-This document describes a framework for AI-assisted network protocol testing from protocol specifications.  The framework is organized around the workflow that connects specification text, structured protocol representation, test generation, executable tester and Device Under Test (DUT) artifacts, and execution feedback.
+Network protocol testing is essential for validating that implementations conform to their specifications.  Traditional testing approaches rely heavily on manual effort or protocol-specific models that are expensive to build and difficult to reuse as specifications evolve and new protocols emerge.
 
-The testing workflow separates two concerns that are often conflated.  Coverage scoping identifies, from the structured protocol representation and the test requirements for a given campaign, the set of protocol behaviors that a test suite intends to exercise — defining what needs to be tested and documenting what is excluded and why.  Test case generation then produces concrete test cases, oracles, and executable artifacts from that scope.  The iterative feedback loop distinguishes whether a failure or coverage gap originates from an error in the generated artifacts or from an incomplete scope definition, so that each refinement cycle targets the correct cause — checking the more concrete before the more abstract.  The document discusses design motivations, trade-offs, illustrative cases, and open research challenges for this workflow.
+This document describes a framework for AI-assisted network protocol testing that decomposes the testing workflow into six stages: structured protocol representation, coverage scoping, test case generation, executable artifact generation, test execution, and feedback-based refinement.  The framework emphasizes explicit handoffs between stages, keeping the workflow auditable and traceable to the specification text.
+
+The document discusses the design motivations and trade-offs behind the framework, presents illustrative cases drawn from routing protocol testing, and identifies open research challenges.
+
 
 --- middle
 
@@ -94,7 +103,7 @@ This document focuses on specification-derived protocol testing.  The primary in
 
 The framework is mainly intended for conformance, functional, robustness, regression, and related protocol-behavior tests.  It does not attempt to cover all implementation-specific defects.  Bugs in local management channels, proprietary command-line behavior, vendor-specific configuration subsystems, or non-standard extensions can require additional input documents such as vendor manuals, YANG models, implementation notes, or operational policies.
 
-The framework also assumes that AI-assisted components are not trusted as fully autonomous oracles.  Human review remains important at workflow boundaries, especially for structured representation inspection, coverage scope acceptance, test oracle validation, executable artifact validation, and final bug confirmation.  The intended role of automation is to reduce repetitive expert effort while preserving traceability and expert control.
+The framework also assumes that AI-assisted components are not trusted as fully autonomous decision makers.  Human review remains important at workflow boundaries, especially for structured representation inspection, coverage scope acceptance, test oracle validation, executable artifact validation, and final bug confirmation.  The intended role of automation is to reduce repetitive expert effort while preserving traceability and expert control.
 
 This document does not define a protocol, a test case format, or a maturity-level classification.
 
@@ -103,11 +112,11 @@ This document does not define a protocol, a test case format, or a maturity-leve
 
 DUT: Device Under Test
 
-Tester: A network device implementing multiple network protocols to support protocol conformance and performance testing. It generates test-specific packets or traffic, emulates target network behaviors, and analyzes received packets to evaluate protocol compliance and performance.
+Tester: A device with sufficient network protocol functionality and test-control capabilities to execute test cases. It can generate and receive test-specific packets or traffic, emulate target network behaviors, collect observations, and analyze results.
 
 LLM: Large Language Model
 
-FSM: Finite State Machine
+AI Agent: A system that can assist with or drive parts of multi-step workflows by using tools and making decisions based on feedback, subject to configured constraints and review points.
 
 API: Application Programming Interface
 
@@ -119,38 +128,18 @@ Tester Script: An executable program or sequence of instructions that controls a
 
 <!-- Tester Script: An executable program or sequence that carries out a test case on a device. -->
 
-# Network Protocol Testing Scenarios
+# Background
 
-Network protocol testing is required in many scenarios. This document outlines two common phases where protocol testing plays a critical role:
+Protocol testing is required during device development, where vendors verify that their implementations conform to protocol specifications, and during procurement evaluation, where third-party organizations perform black-box conformance testing against a neutral standard.  Both scenarios share a common set of elements that any testing framework must address.
 
-1. Device Development Phase:
-During the development of network equipment, vendors need to ensure that their devices conform to protocol specifications. This requires the construction of a large number of test cases. Testing during this phase can involve both protocol testers and the DUT, or it can be performed solely through interconnection among DUTs.
+A Device Under Test (DUT) can be a physical network device such as a switch, router, or firewall, or a virtual network device such as an FRRouting (FRR) instance {{FRRouting}}.  A protocol tester is a device with sufficient protocol functionality to generate test traffic, receive and analyze packets, emulate target network behaviors, and produce test results.  Testers can typically be controlled via scripts.
 
-2. Procurement Evaluation Phase:
-In the context of equipment acquisition by network operators or enterprises, candidate equipment suppliers need to demonstrate compliance with specified requirements. In this phase, third-party organizations typically perform the testing to ensure neutrality. This type of testing is usually conducted as black-box testing, requiring the use of protocol testers interconnected with the DUT. The test cases are executed while observing whether the DUT behaves in accordance with expected protocol specifications.
+Protocol test cases specify the conditions and inputs needed to evaluate a protocol behavior.  They cover categories such as conformance, functional, and performance tests, and each test case includes a test topology, step-by-step procedures, expected results, and configuration parameters.  Each test case requires a network topology; in batch testing, it is common to construct a minimal common topology that satisfies the requirements of all test cases in the batch.
 
-# Key Elements of Network Protocol Testing
+Before executing a test case, the DUT is initialized with specific configurations (setup).  The DUT configuration can change during the test as dictated by the scenario, and is restored upon completion (teardown).  The tester is configured and controlled through scripts that coordinate with the DUT configuration to ensure proper interaction during the test.
 
 
-Network protocol testing is a complex and comprehensive process that typically involves multiple parties and various necessary components. The following entities are generally involved in protocol testing:
-
-1. DUT:
-The DUT can be a physical network device (such as switches, routers, and firewalls) or a virtual network device (such as FRRouting (FRR) routers and others).
-
-2. Tester:
-A protocol tester is a specialized network device that usually implements a standard and comprehensive protocol stack. It can generate test traffic, collect and analyze incoming traffic, and produce test results. Protocol testers can typically be controlled via scripts, allowing automated interaction with the DUT to carry out protocol tests.
-
-3. Test Cases: 
-Protocol test cases can cover various categories, including protocol conformance tests, functional tests, and performance tests. Each test case typically includes essential elements such as test topology, step-by-step procedures, and expected results. A well-defined test case also includes detailed configuration parameters.
-
-4. Test Topology: Each test case needs to specify the network topology it requires. Before executing a test case, the corresponding topology needs to be established accordingly. In a batch testing scenario, frequent changes in topology can be time-consuming and inefficient. To mitigate this overhead, it is common practice to construct a minimal common topology that satisfies the requirements of all test cases in a given batch. This minimizes the number of devices and links needed while ensuring that each test case can be executed within the shared topology.
-
-5. DUT Configuration: Before executing a test case, the DUT needs to be initialized with specific configurations according to the test case requirements (setup). Throughout the test, the DUT configuration can undergo multiple modifications as dictated by the test scenario. Upon test completion, appropriate configurations are usually applied to restore the DUT to its initial state (teardown).
-
-6. Tester Configuration and Scripts: In test scenarios involving protocol testers, the tester often plays the active role by generating test traffic and orchestrating the test process. This requires the preparation of both tester-specific configurations and execution scripts. Tester scripts are typically designed in coordination with the DUT configurations to ensure proper interaction during the test.
-
-
-# Framework Overview
+# Framework
 
 The AI-assisted network protocol testing framework is illustrated in the figure below.  Test requirements are an external input, provided by the testing team for each campaign.
 
@@ -187,7 +176,7 @@ The framework has six stages:
 
 The output of each stage becomes a handoff to the next stage.  For this reason, each stage can expose not only generated content, but also source references, assumptions, constraints, and review status.
 
-The six stages support two complementary cycles.  In the forward cycle, coverage scoping and test case generation produce the test suite from the specification and the test requirements.  In the backward cycle, execution feedback is analyzed to distinguish between an error in the generated artifacts and an incomplete coverage scope — checking the more concrete cause before the more abstract one.  An AI agent can assist in both cycles, but human review gates remain at the acceptance of the coverage scope, the validation of oracles, and the confirmation of protocol defects.
+The six stages support two complementary cycles.  In the forward cycle, coverage scoping and test case generation produce the test suite from the specification and the test requirements.  In the backward cycle, execution feedback is analyzed to localize the likely source of a failure or coverage gap, starting from concrete execution artifacts and moving toward more abstract scope or representation issues when needed.  An AI agent can assist in both cycles, but human oversight remains at the acceptance of the coverage scope, the validation of oracles, and the confirmation of protocol defects.
 
 ## Structured Protocol Representation
 
@@ -220,15 +209,15 @@ The main design trade-off is between completeness and usefulness.  A fully forma
 
 ## Coverage Scoping
 
-A structured protocol representation describes what a protocol specification defines.  It does not, by itself, state which of those definitions a particular test campaign intends to cover.  Coverage scoping is the activity of selecting, from the representation, the set of protocol behaviors that a test suite will exercise — and of documenting which items are excluded and why.
+A structured protocol representation describes what a protocol specification defines.  It does not, by itself, state which of those definitions a particular test campaign intends to cover.  Coverage scoping is the activity of selecting, from the representation, the set of protocol behaviors that a test suite will exercise, and of documenting which items are excluded and why.
 
 Coverage scoping takes two inputs: the structured protocol representation, and the test requirements for the campaign.  Test requirements are external to the framework; they are provided by the testing team and reflect the purpose of the test campaign (e.g., a procurement specification, a regression policy, or a security audit scope).  They define the objectives, constraints, and priorities that guide scoping decisions.
 
-The output is a coverage scope: a structured decision record in which each referenced protocol behavior is marked as included or excluded, assigned a priority, and — when excluded — accompanied by a documented reason.  Reasons can include specification deprecation by a later RFC, exclusion by the test objective, hardware or time constraints, or other testability limits.  The scope references items in the representation without duplicating their definitions; it adds the decisions that the representation cannot express.
+The output is a coverage scope: a structured decision record in which each referenced protocol behavior is marked as included or excluded, assigned a priority, and, when excluded, accompanied by a documented reason.  Reasons can include specification deprecation by a later RFC, exclusion by the test objective, hardware or time constraints, or other testability limits.  The scope references items in the representation without duplicating their definitions; it adds the decisions that the representation cannot express.
 
-The coverage scope serves three purposes.  First, it replaces an unverifiable coverage percentage with an inspectable coverage plan: a human reviewer can assess whether the set of included and excluded behaviors is acceptable for the test campaign's objective.  Second, it provides the input to test case generation, so that generation focuses on how to test rather than what to test.  Third, when a test failure or coverage gap is found during iterative refinement, the scope allows the framework to distinguish between an error in the generated artifacts and an incomplete scope definition.
+The coverage scope serves three purposes.  First, it replaces an unverifiable coverage percentage with an inspectable coverage plan: a human reviewer can assess whether the set of included and excluded behaviors is acceptable for the test campaign's objective.  Second, it provides the input to test case generation, so that generation focuses on how to test rather than what to test.  Third, during iterative refinement, it provides a controlled basis for deciding whether a newly observed behavior or coverage gap should be added to the campaign scope, remain excluded, or trigger a revision of the documented scoping rationale.
 
-An AI agent can assist in producing an initial coverage scope by traversing the representation, applying the test requirements, and proposing inclusion or exclusion with documented reasoning.  Acceptance of the scope remains a human review gate.
+An AI agent can assist in producing an initial coverage scope by traversing the representation, applying the test requirements, and proposing inclusion or exclusion with documented reasoning.  Final acceptance of the scope requires human review.
 
 ## Test Case Generation
 
@@ -252,7 +241,7 @@ This separation is a key design choice.  Templates provide breadth across protoc
 
 Generated test cases still require review.  Correctness means that a test reflects the intended protocol semantics.  Coverage means that the test suite exercises relevant protocol functions, behaviors, and parameter spaces.  Because protocol test cases mix natural language, topology assumptions, configuration fragments, packet observations, and oracles, systematic evaluation of correctness and coverage remains an open research challenge.
 
-## Executable Artifact Generation and Feedback
+## Executable Artifact Generation
 
 Executable artifact generation translates abstract test cases into runnable tester scripts and DUT configurations.  This step is difficult because tester actions and DUT configurations are coordinated together.  They agree on topology, addresses, protocol parameters, timing, expected packets, and oracle logic.
 
@@ -263,6 +252,10 @@ Directly exposing heterogeneous tester APIs and device-specific configuration me
 - an execution abstraction for running tests, collecting logs, and reporting pass/fail outcomes
 
 These abstractions constrain the generation problem and make artifacts easier to validate.  Validation covers both syntax and semantics.  Syntax validation detects invalid API calls or CLI commands.  Semantic validation checks whether the artifacts implement the intended test logic and whether tester and DUT configurations are mutually consistent.
+
+## Test Execution and Feedback
+
+Test execution runs the generated artifacts in a controlled test environment and collects the observations needed for result evaluation.
 
 Execution feedback requires careful interpretation.  A failed test does not always indicate a protocol implementation defect.  It can be caused by an invalid test case, an incorrect oracle, a generated script error, a DUT configuration issue, a topology problem, or environmental instability.  Feedback analysis distinguishes at least four categories:
 
@@ -275,85 +268,81 @@ A feedback record can be organized into observed inputs, analysis, and refinemen
 
 Human review is most valuable at the boundaries where these categories are decided.  In practical deployments, the goal is not to remove experts from the workflow, but to shift their effort from manual artifact construction to targeted review, correction, and final decision-making.
 
-# Design Considerations and Trade-offs
+# Design Considerations
 
-## End-to-End Prompting vs. Structured Workflow Boundaries
+## Structured Workflow Boundaries
 
-End-to-end prompting can produce useful drafts, but it is a weak workflow boundary for protocol testing.  It often hides which specification text was used, which constraints were preserved, and which assumptions were introduced.  A structured representation provides a more inspectable boundary between specification analysis and test generation.
+End-to-end prompting can produce useful drafts, but it is a weak workflow boundary for protocol testing.  It often hides which specification text was used, which constraints were preserved, and which assumptions were introduced.  Structured workflow boundaries, with explicit handoffs that carry source references and assumptions, provide a more inspectable and auditable path from specification to executable tests.
 
-## Test-Relevant Representation vs. Complete Formal Model
+## Test-Relevant Protocol Representation
 
 Complete formal models can provide strong guarantees, but they are expensive to build and difficult to maintain across many protocols and update documents.  A test-relevant representation makes a weaker claim: it aims to preserve the semantics needed for testing.  This is less complete, but more feasible for broad protocol coverage.
 
-## Template Breadth vs. Parameter Depth
+## Separation of Templates and Parameters
 
 Generating many concrete tests directly can produce large and redundant suites.  Separating templates from parameters allows broad functional coverage and deep parameter exploration to scale independently.  The cost is that the framework also manages parameter reduction, oracle computation, and test-suite scheduling.
 
-## Feedback Automation vs. Human Confirmation
+## Human-in-the-Loop Review
 
-Execution feedback is necessary because some errors only appear at runtime.  However, automatic failure classification can be misleading.  The framework keeps experts in the loop for high-impact decisions such as accepting a generated oracle, approving executable artifacts, and confirming protocol violations.
+AI-assisted workflows can help analyze execution feedback, but the interpretation of test results should not be fully automated.  A failed test may result from a DUT protocol violation, an incorrect oracle, an invalid test case, a generated script error, a configuration issue, or instability in the test environment.  The framework therefore keeps experts in the loop for high-impact interpretation and approval decisions.
 
-## Specification Scope vs. Implementation Scope
+## Specification-Derived Testing
 
 Specification-derived testing targets behavior defined by protocol specifications.  It can miss implementation-specific bugs in management functions, local control channels, vendor extensions, or configuration subsystems.  Expanding the input corpus can broaden coverage, but also introduces new ambiguity and source-trust questions.
 
-# Cases and Experience
+# Use Cases
 
-This section gives illustrative cases that motivate the framework.  The cases are not intended to define required behavior for all implementations.
+This section presents illustrative use cases that motivate the framework.  The cases are not intended to define required behavior for all implementations.
 
-## Case 1: Update-Aware Testing
+## Update-Aware Testing
 
-Protocol behavior changes over time.  For example, an update document can deprecate a message field, add a timer, or modify a state-machine transition.  A framework that treats the update document in isolation can miss the affected base-protocol behavior.
+Protocol behavior changes over time as RFCs are updated.  For example, RFC 9774 {{RFC9774}} formally deprecated the AS_SET path attribute in BGP.  A framework that treats RFC 9774 in isolation can miss the affected base-protocol behavior that remains defined in RFC 4271 {{RFC4271}}.
 
-An update-aware representation can map an update to the corresponding base modules, such as a BGP path attribute or state-machine rule.  Test generation can then focus on the changed behavior.  For example, when a path segment is deprecated, the generated test can advertise a route containing that segment and check whether the DUT handles or propagates it according to the updated specification.
+An update-aware representation can map the RFC 9774 {{RFC9774}} deprecation to the corresponding BGP path attribute and state-machine rule in the base representation.  Test generation can then focus on the changed behavior.  The generated test advertises a route containing AS_SET and checks whether the DUT correctly removes it from the AS_PATH.  When this test was applied to deployed implementations, several devices were found to still propagate the deprecated attribute, including a widely used open-source routing stack that subsequently fixed the behavior in a later release.
 
 The lesson is that update documents are best represented as differential changes over existing protocol modules, not as standalone specifications.
 
-## Case 2: Specification-Derived Bug Exposure
+## Specification-Derived Bug Exposure
 
-A specification can define behavior that is easy to overlook in manual test suites.  For example, a routing protocol can define how a default route is expected to be originated, advertised, or accepted.  A generated test can configure the relevant condition, capture protocol updates, and check whether the expected route appears.
+Specifications can define behavior that is easy to overlook in manual test suites.  RFC 2453 {{RFC2453}} defines conditions under which a RIP router originates and advertises a default route to neighbors (Section 3.7).  A manually curated test suite might verify basic route exchange without exercising this specific condition.  A structured representation makes the condition explicit, so that test generation can configure the relevant scenario, capture routing updates, and check whether the expected default route appears.  This approach has exposed implementation defects that were not covered by existing manually maintained test suites.
 
 The lesson is that systematic extraction of test points from structured protocol behavior can expose gaps in manually curated test suites, especially for less frequently tested edge cases.
 
-## Case 3: Parameterized Boundary Testing
+## Parameterized Boundary Testing
 
-Some bugs appear only under specific parameter relationships rather than under a single fixed input.  For example, a state-machine or route-selection behavior can depend on relative priority values, timer ordering, prefix relationships, or topology-dependent reachability.
-
-Template-parameter separation supports this class of tests.  A template captures the protocol scenario, while parameter instantiation explores relevant value relationships.  Equivalence partitioning can reduce redundant combinations while preserving representative boundary cases.
+Some bugs appear only under specific parameter relationships rather than under a single fixed input.  For example, in OSPF, route selection can depend on relative path costs, and DR election depends on relative router priorities.  Template-parameter separation supports this class of tests.  A template captures the protocol scenario, while parameter instantiation explores relevant value relationships such as equal costs, boundary priority values, and timing orderings.  Equivalence partitioning can reduce redundant combinations while preserving representative boundary cases.  Across a set of manually classified protocol implementation bugs, parameterized tests detected defects that single-value test instances did not exercise.
 
 The lesson is that test depth often depends on parameter relationships and oracle computation, not only on the number of test cases.
 
-## Implementation Experience
-
-Prototype implementations and deployment-oriented studies suggest that the framework can reduce repetitive expert effort while preserving useful protocol-test coverage.  Early experience across multiple routing protocols indicates that structured representation, template-parameter separation, and execution feedback can help generate large test suites, reduce redundant parameter instances, and expose defects not covered by manually curated suites.
-
-These observations are non-normative implementation experience, not a general guarantee or a requirement for conforming systems.  Detailed experimental methodology and quantitative results are out of scope for this document and can be reported separately.  The experience mainly supports the need for structured workflow boundaries, review points, and test-suite management.
-
 # Research Challenges
 
-Several research challenges remain open for AI-assisted protocol testing.
+Several research challenges remain open for AI-assisted protocol testing.  Each is discussed briefly below.
 
-Representation fidelity: The community lacks widely accepted metrics for whether a structured protocol representation preserves the semantics needed for testing.
+Representation fidelity: The community lacks widely accepted metrics for whether a structured protocol representation preserves the semantics needed for testing.  Without such metrics, comparing alternative representation approaches or determining when a representation is adequate for a given testing objective remains difficult.
 
-Coverage scope validation and completeness: A coverage scope reconciles test requirements with a structured protocol representation, but both are ultimately grounded in natural-language specifications for which no machine-readable definition of "complete coverage" exists.  Methods for assessing whether a coverage scope adequately captures the protocol behaviors relevant to a given test objective, and for measuring how completely a derived test suite exercises its stated scope, remain open.
+Coverage scope validation and completeness: A coverage scope reconciles test requirements with a structured protocol representation, but both are grounded in natural-language specifications for which no machine-readable definition of complete coverage exists.  Methods for assessing whether a coverage scope adequately captures the protocol behaviors relevant to a given test objective, and for measuring how completely a derived test suite exercises its stated scope, remain open.
 
-Update-aware testing: RFC updates, extensions, and deprecations require methods to localize changes and propagate them to affected tests.
+Update-aware testing: RFC updates, extensions, and deprecations require methods to localize specification changes and propagate them through the representation to the affected tests.  Current practice largely treats each RFC version as a standalone document, missing opportunities to reuse existing test assets and to focus testing effort on changed behavior.
 
-Cross-vendor artifact abstraction: Tester APIs and device configuration mechanisms differ across vendors and testbeds.  Common abstractions are needed to make generated artifacts portable and reviewable.
+Cross-vendor artifact abstraction: Tester APIs and device configuration mechanisms differ across vendors and testbeds.  Common abstractions for DUT control, tester logic, and execution management are needed to make generated artifacts portable across test environments and to allow human reviewers to assess them without vendor-specific expertise.
 
-Oracle generation and validation: Some expected results can be computed from protocol algorithms, while others require judgment or implementation-specific context.
+Oracle generation and validation: Some expected results can be computed deterministically from protocol algorithms, while others depend on timing, ordering, or implementation-specific behavior.  Generating correct oracles for the latter category, and validating oracle correctness when no higher-level oracle exists, remains difficult.
 
-Failure triage: A failed test can indicate a DUT bug, invalid test case, script error, configuration error, or environment issue.  Reliable triage remains difficult.
+Failure triage: A failed test can indicate a DUT protocol violation, an incorrect test case, a script or configuration error, or a transient environment issue.  Reliably distinguishing among these causes, especially when an AI agent participates in artifact generation and its own reasoning may contribute to the failure, remains an open challenge.
 
-Feedback-loop reproducibility: Refinement decisions need enough recorded context to be replayed, audited, and compared across tool versions or test environments.
+Feedback-loop reproducibility: Refinement decisions need enough recorded context to be replayed, audited, and compared across tool versions or test environments.  Without reproducible refinement, it is difficult to assess whether a change to the framework or the underlying AI model improves or degrades testing outcomes over time.
 
-Test-suite management: Large generated suites require reduction, scheduling, topology clustering, prioritization, and regression selection.
+Test-suite management: Large generated suites can contain thousands of test cases, requiring methods for reduction, scheduling, topology clustering, prioritization, and regression selection.  Managing such suites across protocol updates and test campaigns, without losing coverage of critical behaviors, is an open operational challenge.
 
-Auditability and traceability: Test results need traceability back to specification text, representation modules, generated test cases, parameters, and executable artifacts.
+Auditability and traceability: When an AI-assisted workflow produces a test result, stakeholders need to trace that result back through executable artifacts, test cases, the coverage scope, the protocol representation, and ultimately to the specification text.  End-to-end traceability across all these stages, in a form that is both machine-processable and human-reviewable, remains an open challenge.
 
-Safety and security: Automatically generated code and configuration can disrupt test environments or create misleading reports.  Sandboxing, validation, and human approval remain necessary for high-impact operations.
+Safety and security: Automatically generated code and configuration can disrupt test environments or create misleading reports.  Determining the appropriate level of automation versus human control for operations at different risk levels, beyond the general guidance of sandboxing and validation, remains an open question.
 
 
+
+# Conclusion
+
+This document has described a framework for AI-assisted network protocol testing from specifications.  The framework provides a structured workflow, from protocol representation through coverage scoping, test generation, execution, and feedback, in which stage boundaries are explicit, handoffs carry traceability to the specification, and human oversight is applied at the points where errors carry the highest cost.  The authors hope this framing helps the NMRG community discuss and advance the research challenges identified in this document.
 
 # Security Considerations
 

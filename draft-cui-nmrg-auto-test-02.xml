@@ -12,7 +12,7 @@
 ]>
 
 
-<rfc ipr="trust200902" docName="draft-cui-nmrg-auto-test-02" category="info" consensus="true" submissionType="IRTF" tocInclude="true" sortRefs="true" symRefs="true">
+<rfc ipr="trust200902" docName="draft-cui-nmrg-auto-test-02" category="info" submissionType="IRTF" tocInclude="true" sortRefs="true" symRefs="true">
   <front>
     <title abbrev="AI-NPT">A Framework for AI-Assisted Network Protocol Testing from Specifications</title>
 
@@ -47,7 +47,7 @@
       </address>
     </author>
 
-    <date year="2026" month="June" day="28"/>
+    <date year="2026" month="June" day="29"/>
 
     <area>Operations and Management</area>
     <workgroup>Network Management Research Group</workgroup>
@@ -56,11 +56,13 @@
     <abstract>
 
 
-<?line 73?>
+<?line 79?>
 
-<t>This document describes a framework for AI-assisted network protocol testing from protocol specifications.  The framework is organized around the workflow that connects specification text, structured protocol representation, test generation, executable tester and Device Under Test (DUT) artifacts, and execution feedback.</t>
+<t>Network protocol testing is essential for validating that implementations conform to their specifications.  Traditional testing approaches rely heavily on manual effort or protocol-specific models that are expensive to build and difficult to reuse as specifications evolve and new protocols emerge.</t>
 
-<t>The testing workflow separates two concerns that are often conflated.  Coverage scoping identifies, from the structured protocol representation and the test requirements for a given campaign, the set of protocol behaviors that a test suite intends to exercise — defining what needs to be tested and documenting what is excluded and why.  Test case generation then produces concrete test cases, oracles, and executable artifacts from that scope.  The iterative feedback loop distinguishes whether a failure or coverage gap originates from an error in the generated artifacts or from an incomplete scope definition, so that each refinement cycle targets the correct cause — checking the more concrete before the more abstract.  The document discusses design motivations, trade-offs, illustrative cases, and open research challenges for this workflow.</t>
+<t>This document describes a framework for AI-assisted network protocol testing that decomposes the testing workflow into six stages: structured protocol representation, coverage scoping, test case generation, executable artifact generation, test execution, and feedback-based refinement.  The framework emphasizes explicit handoffs between stages, keeping the workflow auditable and traceable to the specification text.</t>
+
+<t>The document discusses the design motivations and trade-offs behind the framework, presents illustrative cases drawn from routing protocol testing, and identifies open research challenges.</t>
 
 
 
@@ -87,7 +89,7 @@
   <middle>
 
 
-<?line 79?>
+<?line 88?>
 
 <section anchor="introduction"><name>Introduction</name>
 
@@ -106,7 +108,7 @@
 
 <t>The framework is mainly intended for conformance, functional, robustness, regression, and related protocol-behavior tests.  It does not attempt to cover all implementation-specific defects.  Bugs in local management channels, proprietary command-line behavior, vendor-specific configuration subsystems, or non-standard extensions can require additional input documents such as vendor manuals, YANG models, implementation notes, or operational policies.</t>
 
-<t>The framework also assumes that AI-assisted components are not trusted as fully autonomous oracles.  Human review remains important at workflow boundaries, especially for structured representation inspection, coverage scope acceptance, test oracle validation, executable artifact validation, and final bug confirmation.  The intended role of automation is to reduce repetitive expert effort while preserving traceability and expert control.</t>
+<t>The framework also assumes that AI-assisted components are not trusted as fully autonomous decision makers.  Human review remains important at workflow boundaries, especially for structured representation inspection, coverage scope acceptance, test oracle validation, executable artifact validation, and final bug confirmation.  The intended role of automation is to reduce repetitive expert effort while preserving traceability and expert control.</t>
 
 <t>This document does not define a protocol, a test case format, or a maturity-level classification.</t>
 
@@ -115,11 +117,11 @@
 
 <t>DUT: Device Under Test</t>
 
-<t>Tester: A network device implementing multiple network protocols to support protocol conformance and performance testing. It generates test-specific packets or traffic, emulates target network behaviors, and analyzes received packets to evaluate protocol compliance and performance.</t>
+<t>Tester: A device with sufficient network protocol functionality and test-control capabilities to execute test cases. It can generate and receive test-specific packets or traffic, emulate target network behaviors, collect observations, and analyze results.</t>
 
 <t>LLM: Large Language Model</t>
 
-<t>FSM: Finite State Machine</t>
+<t>AI Agent: A system that can assist with or drive parts of multi-step workflows by using tools and making decisions based on feedback, subject to configured constraints and review points.</t>
 
 <t>API: Application Programming Interface</t>
 
@@ -132,36 +134,18 @@
 <!-- Tester Script: An executable program or sequence that carries out a test case on a device. -->
 
 </section>
-<section anchor="network-protocol-testing-scenarios"><name>Network Protocol Testing Scenarios</name>
+<section anchor="background"><name>Background</name>
 
-<t>Network protocol testing is required in many scenarios. This document outlines two common phases where protocol testing plays a critical role:</t>
+<t>Protocol testing is required during device development, where vendors verify that their implementations conform to protocol specifications, and during procurement evaluation, where third-party organizations perform black-box conformance testing against a neutral standard.  Both scenarios share a common set of elements that any testing framework must address.</t>
 
-<t><list style="numbers" type="1">
-  <t>Device Development Phase:
-During the development of network equipment, vendors need to ensure that their devices conform to protocol specifications. This requires the construction of a large number of test cases. Testing during this phase can involve both protocol testers and the DUT, or it can be performed solely through interconnection among DUTs.</t>
-  <t>Procurement Evaluation Phase:
-In the context of equipment acquisition by network operators or enterprises, candidate equipment suppliers need to demonstrate compliance with specified requirements. In this phase, third-party organizations typically perform the testing to ensure neutrality. This type of testing is usually conducted as black-box testing, requiring the use of protocol testers interconnected with the DUT. The test cases are executed while observing whether the DUT behaves in accordance with expected protocol specifications.</t>
-</list></t>
+<t>A Device Under Test (DUT) can be a physical network device such as a switch, router, or firewall, or a virtual network device such as an FRRouting (FRR) instance <xref target="FRRouting"/>.  A protocol tester is a device with sufficient protocol functionality to generate test traffic, receive and analyze packets, emulate target network behaviors, and produce test results.  Testers can typically be controlled via scripts.</t>
 
-</section>
-<section anchor="key-elements-of-network-protocol-testing"><name>Key Elements of Network Protocol Testing</name>
+<t>Protocol test cases specify the conditions and inputs needed to evaluate a protocol behavior.  They cover categories such as conformance, functional, and performance tests, and each test case includes a test topology, step-by-step procedures, expected results, and configuration parameters.  Each test case requires a network topology; in batch testing, it is common to construct a minimal common topology that satisfies the requirements of all test cases in the batch.</t>
 
-<t>Network protocol testing is a complex and comprehensive process that typically involves multiple parties and various necessary components. The following entities are generally involved in protocol testing:</t>
-
-<t><list style="numbers" type="1">
-  <t>DUT:
-The DUT can be a physical network device (such as switches, routers, and firewalls) or a virtual network device (such as FRRouting (FRR) routers and others).</t>
-  <t>Tester:
-A protocol tester is a specialized network device that usually implements a standard and comprehensive protocol stack. It can generate test traffic, collect and analyze incoming traffic, and produce test results. Protocol testers can typically be controlled via scripts, allowing automated interaction with the DUT to carry out protocol tests.</t>
-  <t>Test Cases: 
-Protocol test cases can cover various categories, including protocol conformance tests, functional tests, and performance tests. Each test case typically includes essential elements such as test topology, step-by-step procedures, and expected results. A well-defined test case also includes detailed configuration parameters.</t>
-  <t>Test Topology: Each test case needs to specify the network topology it requires. Before executing a test case, the corresponding topology needs to be established accordingly. In a batch testing scenario, frequent changes in topology can be time-consuming and inefficient. To mitigate this overhead, it is common practice to construct a minimal common topology that satisfies the requirements of all test cases in a given batch. This minimizes the number of devices and links needed while ensuring that each test case can be executed within the shared topology.</t>
-  <t>DUT Configuration: Before executing a test case, the DUT needs to be initialized with specific configurations according to the test case requirements (setup). Throughout the test, the DUT configuration can undergo multiple modifications as dictated by the test scenario. Upon test completion, appropriate configurations are usually applied to restore the DUT to its initial state (teardown).</t>
-  <t>Tester Configuration and Scripts: In test scenarios involving protocol testers, the tester often plays the active role by generating test traffic and orchestrating the test process. This requires the preparation of both tester-specific configurations and execution scripts. Tester scripts are typically designed in coordination with the DUT configurations to ensure proper interaction during the test.</t>
-</list></t>
+<t>Before executing a test case, the DUT is initialized with specific configurations (setup).  The DUT configuration can change during the test as dictated by the scenario, and is restored upon completion (teardown).  The tester is configured and controlled through scripts that coordinate with the DUT configuration to ensure proper interaction during the test.</t>
 
 </section>
-<section anchor="framework-overview"><name>Framework Overview</name>
+<section anchor="framework"><name>Framework</name>
 
 <t>The AI-assisted network protocol testing framework is illustrated in the figure below.  Test requirements are an external input, provided by the testing team for each campaign.</t>
 
@@ -201,7 +185,7 @@ Protocol test cases can cover various categories, including protocol conformance
 
 <t>The output of each stage becomes a handoff to the next stage.  For this reason, each stage can expose not only generated content, but also source references, assumptions, constraints, and review status.</t>
 
-<t>The six stages support two complementary cycles.  In the forward cycle, coverage scoping and test case generation produce the test suite from the specification and the test requirements.  In the backward cycle, execution feedback is analyzed to distinguish between an error in the generated artifacts and an incomplete coverage scope — checking the more concrete cause before the more abstract one.  An AI agent can assist in both cycles, but human review gates remain at the acceptance of the coverage scope, the validation of oracles, and the confirmation of protocol defects.</t>
+<t>The six stages support two complementary cycles.  In the forward cycle, coverage scoping and test case generation produce the test suite from the specification and the test requirements.  In the backward cycle, execution feedback is analyzed to localize the likely source of a failure or coverage gap, starting from concrete execution artifacts and moving toward more abstract scope or representation issues when needed.  An AI agent can assist in both cycles, but human oversight remains at the acceptance of the coverage scope, the validation of oracles, and the confirmation of protocol defects.</t>
 
 <section anchor="structured-protocol-representation"><name>Structured Protocol Representation</name>
 
@@ -237,15 +221,15 @@ Protocol test cases can cover various categories, including protocol conformance
 </section>
 <section anchor="coverage-scoping"><name>Coverage Scoping</name>
 
-<t>A structured protocol representation describes what a protocol specification defines.  It does not, by itself, state which of those definitions a particular test campaign intends to cover.  Coverage scoping is the activity of selecting, from the representation, the set of protocol behaviors that a test suite will exercise — and of documenting which items are excluded and why.</t>
+<t>A structured protocol representation describes what a protocol specification defines.  It does not, by itself, state which of those definitions a particular test campaign intends to cover.  Coverage scoping is the activity of selecting, from the representation, the set of protocol behaviors that a test suite will exercise, and of documenting which items are excluded and why.</t>
 
 <t>Coverage scoping takes two inputs: the structured protocol representation, and the test requirements for the campaign.  Test requirements are external to the framework; they are provided by the testing team and reflect the purpose of the test campaign (e.g., a procurement specification, a regression policy, or a security audit scope).  They define the objectives, constraints, and priorities that guide scoping decisions.</t>
 
-<t>The output is a coverage scope: a structured decision record in which each referenced protocol behavior is marked as included or excluded, assigned a priority, and — when excluded — accompanied by a documented reason.  Reasons can include specification deprecation by a later RFC, exclusion by the test objective, hardware or time constraints, or other testability limits.  The scope references items in the representation without duplicating their definitions; it adds the decisions that the representation cannot express.</t>
+<t>The output is a coverage scope: a structured decision record in which each referenced protocol behavior is marked as included or excluded, assigned a priority, and, when excluded, accompanied by a documented reason.  Reasons can include specification deprecation by a later RFC, exclusion by the test objective, hardware or time constraints, or other testability limits.  The scope references items in the representation without duplicating their definitions; it adds the decisions that the representation cannot express.</t>
 
-<t>The coverage scope serves three purposes.  First, it replaces an unverifiable coverage percentage with an inspectable coverage plan: a human reviewer can assess whether the set of included and excluded behaviors is acceptable for the test campaign's objective.  Second, it provides the input to test case generation, so that generation focuses on how to test rather than what to test.  Third, when a test failure or coverage gap is found during iterative refinement, the scope allows the framework to distinguish between an error in the generated artifacts and an incomplete scope definition.</t>
+<t>The coverage scope serves three purposes.  First, it replaces an unverifiable coverage percentage with an inspectable coverage plan: a human reviewer can assess whether the set of included and excluded behaviors is acceptable for the test campaign's objective.  Second, it provides the input to test case generation, so that generation focuses on how to test rather than what to test.  Third, during iterative refinement, it provides a controlled basis for deciding whether a newly observed behavior or coverage gap should be added to the campaign scope, remain excluded, or trigger a revision of the documented scoping rationale.</t>
 
-<t>An AI agent can assist in producing an initial coverage scope by traversing the representation, applying the test requirements, and proposing inclusion or exclusion with documented reasoning.  Acceptance of the scope remains a human review gate.</t>
+<t>An AI agent can assist in producing an initial coverage scope by traversing the representation, applying the test requirements, and proposing inclusion or exclusion with documented reasoning.  Final acceptance of the scope requires human review.</t>
 
 </section>
 <section anchor="test-case-generation"><name>Test Case Generation</name>
@@ -273,7 +257,7 @@ Protocol test cases can cover various categories, including protocol conformance
 <t>Generated test cases still require review.  Correctness means that a test reflects the intended protocol semantics.  Coverage means that the test suite exercises relevant protocol functions, behaviors, and parameter spaces.  Because protocol test cases mix natural language, topology assumptions, configuration fragments, packet observations, and oracles, systematic evaluation of correctness and coverage remains an open research challenge.</t>
 
 </section>
-<section anchor="executable-artifact-generation-and-feedback"><name>Executable Artifact Generation and Feedback</name>
+<section anchor="executable-artifact-generation"><name>Executable Artifact Generation</name>
 
 <t>Executable artifact generation translates abstract test cases into runnable tester scripts and DUT configurations.  This step is difficult because tester actions and DUT configurations are coordinated together.  They agree on topology, addresses, protocol parameters, timing, expected packets, and oracle logic.</t>
 
@@ -286,6 +270,11 @@ Protocol test cases can cover various categories, including protocol conformance
 </list></t>
 
 <t>These abstractions constrain the generation problem and make artifacts easier to validate.  Validation covers both syntax and semantics.  Syntax validation detects invalid API calls or CLI commands.  Semantic validation checks whether the artifacts implement the intended test logic and whether tester and DUT configurations are mutually consistent.</t>
+
+</section>
+<section anchor="test-execution-and-feedback"><name>Test Execution and Feedback</name>
+
+<t>Test execution runs the generated artifacts in a controlled test environment and collects the observations needed for result evaluation.</t>
 
 <t>Execution feedback requires careful interpretation.  A failed test does not always indicate a protocol implementation defect.  It can be caused by an invalid test case, an incorrect oracle, a generated script error, a DUT configuration issue, a topology problem, or environmental instability.  Feedback analysis distinguishes at least four categories:</t>
 
@@ -302,94 +291,90 @@ Protocol test cases can cover various categories, including protocol conformance
 
 </section>
 </section>
-<section anchor="design-considerations-and-trade-offs"><name>Design Considerations and Trade-offs</name>
+<section anchor="design-considerations"><name>Design Considerations</name>
 
-<section anchor="end-to-end-prompting-vs-structured-workflow-boundaries"><name>End-to-End Prompting vs. Structured Workflow Boundaries</name>
+<section anchor="structured-workflow-boundaries"><name>Structured Workflow Boundaries</name>
 
-<t>End-to-end prompting can produce useful drafts, but it is a weak workflow boundary for protocol testing.  It often hides which specification text was used, which constraints were preserved, and which assumptions were introduced.  A structured representation provides a more inspectable boundary between specification analysis and test generation.</t>
+<t>End-to-end prompting can produce useful drafts, but it is a weak workflow boundary for protocol testing.  It often hides which specification text was used, which constraints were preserved, and which assumptions were introduced.  Structured workflow boundaries, with explicit handoffs that carry source references and assumptions, provide a more inspectable and auditable path from specification to executable tests.</t>
 
 </section>
-<section anchor="test-relevant-representation-vs-complete-formal-model"><name>Test-Relevant Representation vs. Complete Formal Model</name>
+<section anchor="test-relevant-protocol-representation"><name>Test-Relevant Protocol Representation</name>
 
 <t>Complete formal models can provide strong guarantees, but they are expensive to build and difficult to maintain across many protocols and update documents.  A test-relevant representation makes a weaker claim: it aims to preserve the semantics needed for testing.  This is less complete, but more feasible for broad protocol coverage.</t>
 
 </section>
-<section anchor="template-breadth-vs-parameter-depth"><name>Template Breadth vs. Parameter Depth</name>
+<section anchor="separation-of-templates-and-parameters"><name>Separation of Templates and Parameters</name>
 
 <t>Generating many concrete tests directly can produce large and redundant suites.  Separating templates from parameters allows broad functional coverage and deep parameter exploration to scale independently.  The cost is that the framework also manages parameter reduction, oracle computation, and test-suite scheduling.</t>
 
 </section>
-<section anchor="feedback-automation-vs-human-confirmation"><name>Feedback Automation vs. Human Confirmation</name>
+<section anchor="human-in-the-loop-review"><name>Human-in-the-Loop Review</name>
 
-<t>Execution feedback is necessary because some errors only appear at runtime.  However, automatic failure classification can be misleading.  The framework keeps experts in the loop for high-impact decisions such as accepting a generated oracle, approving executable artifacts, and confirming protocol violations.</t>
+<t>AI-assisted workflows can help analyze execution feedback, but the interpretation of test results should not be fully automated.  A failed test may result from a DUT protocol violation, an incorrect oracle, an invalid test case, a generated script error, a configuration issue, or instability in the test environment.  The framework therefore keeps experts in the loop for high-impact interpretation and approval decisions.</t>
 
 </section>
-<section anchor="specification-scope-vs-implementation-scope"><name>Specification Scope vs. Implementation Scope</name>
+<section anchor="specification-derived-testing"><name>Specification-Derived Testing</name>
 
 <t>Specification-derived testing targets behavior defined by protocol specifications.  It can miss implementation-specific bugs in management functions, local control channels, vendor extensions, or configuration subsystems.  Expanding the input corpus can broaden coverage, but also introduces new ambiguity and source-trust questions.</t>
 
 </section>
 </section>
-<section anchor="cases-and-experience"><name>Cases and Experience</name>
+<section anchor="use-cases"><name>Use Cases</name>
 
-<t>This section gives illustrative cases that motivate the framework.  The cases are not intended to define required behavior for all implementations.</t>
+<t>This section presents illustrative use cases that motivate the framework.  The cases are not intended to define required behavior for all implementations.</t>
 
-<section anchor="case-1-update-aware-testing"><name>Case 1: Update-Aware Testing</name>
+<section anchor="update-aware-testing"><name>Update-Aware Testing</name>
 
-<t>Protocol behavior changes over time.  For example, an update document can deprecate a message field, add a timer, or modify a state-machine transition.  A framework that treats the update document in isolation can miss the affected base-protocol behavior.</t>
+<t>Protocol behavior changes over time as RFCs are updated.  For example, RFC 9774 <xref target="RFC9774"/> formally deprecated the AS_SET path attribute in BGP.  A framework that treats RFC 9774 in isolation can miss the affected base-protocol behavior that remains defined in RFC 4271 <xref target="RFC4271"/>.</t>
 
-<t>An update-aware representation can map an update to the corresponding base modules, such as a BGP path attribute or state-machine rule.  Test generation can then focus on the changed behavior.  For example, when a path segment is deprecated, the generated test can advertise a route containing that segment and check whether the DUT handles or propagates it according to the updated specification.</t>
+<t>An update-aware representation can map the RFC 9774 <xref target="RFC9774"/> deprecation to the corresponding BGP path attribute and state-machine rule in the base representation.  Test generation can then focus on the changed behavior.  The generated test advertises a route containing AS_SET and checks whether the DUT correctly removes it from the AS_PATH.  When this test was applied to deployed implementations, several devices were found to still propagate the deprecated attribute, including a widely used open-source routing stack that subsequently fixed the behavior in a later release.</t>
 
 <t>The lesson is that update documents are best represented as differential changes over existing protocol modules, not as standalone specifications.</t>
 
 </section>
-<section anchor="case-2-specification-derived-bug-exposure"><name>Case 2: Specification-Derived Bug Exposure</name>
+<section anchor="specification-derived-bug-exposure"><name>Specification-Derived Bug Exposure</name>
 
-<t>A specification can define behavior that is easy to overlook in manual test suites.  For example, a routing protocol can define how a default route is expected to be originated, advertised, or accepted.  A generated test can configure the relevant condition, capture protocol updates, and check whether the expected route appears.</t>
+<t>Specifications can define behavior that is easy to overlook in manual test suites.  RFC 2453 <xref target="RFC2453"/> defines conditions under which a RIP router originates and advertises a default route to neighbors (Section 3.7).  A manually curated test suite might verify basic route exchange without exercising this specific condition.  A structured representation makes the condition explicit, so that test generation can configure the relevant scenario, capture routing updates, and check whether the expected default route appears.  This approach has exposed implementation defects that were not covered by existing manually maintained test suites.</t>
 
 <t>The lesson is that systematic extraction of test points from structured protocol behavior can expose gaps in manually curated test suites, especially for less frequently tested edge cases.</t>
 
 </section>
-<section anchor="case-3-parameterized-boundary-testing"><name>Case 3: Parameterized Boundary Testing</name>
+<section anchor="parameterized-boundary-testing"><name>Parameterized Boundary Testing</name>
 
-<t>Some bugs appear only under specific parameter relationships rather than under a single fixed input.  For example, a state-machine or route-selection behavior can depend on relative priority values, timer ordering, prefix relationships, or topology-dependent reachability.</t>
-
-<t>Template-parameter separation supports this class of tests.  A template captures the protocol scenario, while parameter instantiation explores relevant value relationships.  Equivalence partitioning can reduce redundant combinations while preserving representative boundary cases.</t>
+<t>Some bugs appear only under specific parameter relationships rather than under a single fixed input.  For example, in OSPF, route selection can depend on relative path costs, and DR election depends on relative router priorities.  Template-parameter separation supports this class of tests.  A template captures the protocol scenario, while parameter instantiation explores relevant value relationships such as equal costs, boundary priority values, and timing orderings.  Equivalence partitioning can reduce redundant combinations while preserving representative boundary cases.  Across a set of manually classified protocol implementation bugs, parameterized tests detected defects that single-value test instances did not exercise.</t>
 
 <t>The lesson is that test depth often depends on parameter relationships and oracle computation, not only on the number of test cases.</t>
-
-</section>
-<section anchor="implementation-experience"><name>Implementation Experience</name>
-
-<t>Prototype implementations and deployment-oriented studies suggest that the framework can reduce repetitive expert effort while preserving useful protocol-test coverage.  Early experience across multiple routing protocols indicates that structured representation, template-parameter separation, and execution feedback can help generate large test suites, reduce redundant parameter instances, and expose defects not covered by manually curated suites.</t>
-
-<t>These observations are non-normative implementation experience, not a general guarantee or a requirement for conforming systems.  Detailed experimental methodology and quantitative results are out of scope for this document and can be reported separately.  The experience mainly supports the need for structured workflow boundaries, review points, and test-suite management.</t>
 
 </section>
 </section>
 <section anchor="research-challenges"><name>Research Challenges</name>
 
-<t>Several research challenges remain open for AI-assisted protocol testing.</t>
+<t>Several research challenges remain open for AI-assisted protocol testing.  Each is discussed briefly below.</t>
 
-<t>Representation fidelity: The community lacks widely accepted metrics for whether a structured protocol representation preserves the semantics needed for testing.</t>
+<t>Representation fidelity: The community lacks widely accepted metrics for whether a structured protocol representation preserves the semantics needed for testing.  Without such metrics, comparing alternative representation approaches or determining when a representation is adequate for a given testing objective remains difficult.</t>
 
-<t>Coverage scope validation and completeness: A coverage scope reconciles test requirements with a structured protocol representation, but both are ultimately grounded in natural-language specifications for which no machine-readable definition of "complete coverage" exists.  Methods for assessing whether a coverage scope adequately captures the protocol behaviors relevant to a given test objective, and for measuring how completely a derived test suite exercises its stated scope, remain open.</t>
+<t>Coverage scope validation and completeness: A coverage scope reconciles test requirements with a structured protocol representation, but both are grounded in natural-language specifications for which no machine-readable definition of complete coverage exists.  Methods for assessing whether a coverage scope adequately captures the protocol behaviors relevant to a given test objective, and for measuring how completely a derived test suite exercises its stated scope, remain open.</t>
 
-<t>Update-aware testing: RFC updates, extensions, and deprecations require methods to localize changes and propagate them to affected tests.</t>
+<t>Update-aware testing: RFC updates, extensions, and deprecations require methods to localize specification changes and propagate them through the representation to the affected tests.  Current practice largely treats each RFC version as a standalone document, missing opportunities to reuse existing test assets and to focus testing effort on changed behavior.</t>
 
-<t>Cross-vendor artifact abstraction: Tester APIs and device configuration mechanisms differ across vendors and testbeds.  Common abstractions are needed to make generated artifacts portable and reviewable.</t>
+<t>Cross-vendor artifact abstraction: Tester APIs and device configuration mechanisms differ across vendors and testbeds.  Common abstractions for DUT control, tester logic, and execution management are needed to make generated artifacts portable across test environments and to allow human reviewers to assess them without vendor-specific expertise.</t>
 
-<t>Oracle generation and validation: Some expected results can be computed from protocol algorithms, while others require judgment or implementation-specific context.</t>
+<t>Oracle generation and validation: Some expected results can be computed deterministically from protocol algorithms, while others depend on timing, ordering, or implementation-specific behavior.  Generating correct oracles for the latter category, and validating oracle correctness when no higher-level oracle exists, remains difficult.</t>
 
-<t>Failure triage: A failed test can indicate a DUT bug, invalid test case, script error, configuration error, or environment issue.  Reliable triage remains difficult.</t>
+<t>Failure triage: A failed test can indicate a DUT protocol violation, an incorrect test case, a script or configuration error, or a transient environment issue.  Reliably distinguishing among these causes, especially when an AI agent participates in artifact generation and its own reasoning may contribute to the failure, remains an open challenge.</t>
 
-<t>Feedback-loop reproducibility: Refinement decisions need enough recorded context to be replayed, audited, and compared across tool versions or test environments.</t>
+<t>Feedback-loop reproducibility: Refinement decisions need enough recorded context to be replayed, audited, and compared across tool versions or test environments.  Without reproducible refinement, it is difficult to assess whether a change to the framework or the underlying AI model improves or degrades testing outcomes over time.</t>
 
-<t>Test-suite management: Large generated suites require reduction, scheduling, topology clustering, prioritization, and regression selection.</t>
+<t>Test-suite management: Large generated suites can contain thousands of test cases, requiring methods for reduction, scheduling, topology clustering, prioritization, and regression selection.  Managing such suites across protocol updates and test campaigns, without losing coverage of critical behaviors, is an open operational challenge.</t>
 
-<t>Auditability and traceability: Test results need traceability back to specification text, representation modules, generated test cases, parameters, and executable artifacts.</t>
+<t>Auditability and traceability: When an AI-assisted workflow produces a test result, stakeholders need to trace that result back through executable artifacts, test cases, the coverage scope, the protocol representation, and ultimately to the specification text.  End-to-end traceability across all these stages, in a form that is both machine-processable and human-reviewable, remains an open challenge.</t>
 
-<t>Safety and security: Automatically generated code and configuration can disrupt test environments or create misleading reports.  Sandboxing, validation, and human approval remain necessary for high-impact operations.</t>
+<t>Safety and security: Automatically generated code and configuration can disrupt test environments or create misleading reports.  Determining the appropriate level of automation versus human control for operations at different risk levels, beyond the general guidance of sandboxing and validation, remains an open question.</t>
+
+</section>
+<section anchor="conclusion"><name>Conclusion</name>
+
+<t>This document has described a framework for AI-assisted network protocol testing from specifications.  The framework provides a structured workflow, from protocol representation through coverage scoping, test generation, execution, and feedback, in which stage boundaries are explicit, handoffs carry traceability to the specification, and human oversight is applied at the points where errors carry the highest cost.  The authors hope this framing helps the NMRG community discuss and advance the research challenges identified in this document.</t>
 
 </section>
 <section anchor="security-considerations"><name>Security Considerations</name>
@@ -414,10 +399,75 @@ Protocol test cases can cover various categories, including protocol conformance
 
 
 
+    <references title='Informative References' anchor="sec-informative-references">
 
 
 
-<?line 368?>
+<reference anchor="RFC2453">
+  <front>
+    <title>RIP Version 2</title>
+    <author fullname="G. Malkin" initials="G." surname="Malkin"/>
+    <date month="November" year="1998"/>
+    <abstract>
+      <t>This document specifies an extension of the Routing Information Protocol (RIP) to expand the amount of useful information carried in RIP messages and to add a measure of security. [STANDARDS-TRACK]</t>
+    </abstract>
+  </front>
+  <seriesInfo name="STD" value="56"/>
+  <seriesInfo name="RFC" value="2453"/>
+  <seriesInfo name="DOI" value="10.17487/RFC2453"/>
+</reference>
+
+<reference anchor="RFC4271">
+  <front>
+    <title>A Border Gateway Protocol 4 (BGP-4)</title>
+    <author fullname="Y. Rekhter" initials="Y." role="editor" surname="Rekhter"/>
+    <author fullname="T. Li" initials="T." role="editor" surname="Li"/>
+    <author fullname="S. Hares" initials="S." role="editor" surname="Hares"/>
+    <date month="January" year="2006"/>
+    <abstract>
+      <t>This document discusses the Border Gateway Protocol (BGP), which is an inter-Autonomous System routing protocol.</t>
+      <t>The primary function of a BGP speaking system is to exchange network reachability information with other BGP systems. This network reachability information includes information on the list of Autonomous Systems (ASes) that reachability information traverses. This information is sufficient for constructing a graph of AS connectivity for this reachability from which routing loops may be pruned, and, at the AS level, some policy decisions may be enforced.</t>
+      <t>BGP-4 provides a set of mechanisms for supporting Classless Inter-Domain Routing (CIDR). These mechanisms include support for advertising a set of destinations as an IP prefix, and eliminating the concept of network "class" within BGP. BGP-4 also introduces mechanisms that allow aggregation of routes, including aggregation of AS paths.</t>
+      <t>This document obsoletes RFC 1771. [STANDARDS-TRACK]</t>
+    </abstract>
+  </front>
+  <seriesInfo name="RFC" value="4271"/>
+  <seriesInfo name="DOI" value="10.17487/RFC4271"/>
+</reference>
+
+<reference anchor="RFC9774">
+  <front>
+    <title>Deprecation of AS_SET and AS_CONFED_SET in BGP</title>
+    <author fullname="W. Kumari" initials="W." surname="Kumari"/>
+    <author fullname="K. Sriram" initials="K." surname="Sriram"/>
+    <author fullname="L. Hannachi" initials="L." surname="Hannachi"/>
+    <author fullname="J. Haas" initials="J." surname="Haas"/>
+    <date month="May" year="2025"/>
+    <abstract>
+      <t>BCP 172 (i.e., RFC 6472) recommends not using AS_SET and AS_CONFED_SET AS_PATH segment types in the Border Gateway Protocol (BGP). This document advances that recommendation to a standards requirement in BGP; it prohibits the use of the AS_SET and AS_CONFED_SET path segment types in the AS_PATH. This is done to simplify the design and implementation of BGP and to make the semantics of the originator of a BGP route clearer. This will also simplify the design, implementation, and deployment of various BGP security mechanisms. This document updates RFC 4271 by deprecating the origination of BGP routes with AS_SET (Type 1 AS_PATH segment) and updates RFC 5065 by deprecating the origination of BGP routes with AS_CONFED_SET (Type 4 AS_PATH segment). Finally, it obsoletes RFC 6472.</t>
+    </abstract>
+  </front>
+  <seriesInfo name="RFC" value="9774"/>
+  <seriesInfo name="DOI" value="10.17487/RFC9774"/>
+</reference>
+
+
+<reference anchor="FRRouting" target="https://frrouting.org/">
+  <front>
+    <title>FRRouting</title>
+    <author >
+      <organization></organization>
+    </author>
+    <date year="n.d."/>
+  </front>
+</reference>
+
+
+    </references>
+
+
+
+<?line 357?>
 
 <section numbered="false" anchor="acknowledgments"><name>Acknowledgments</name>
 
@@ -440,242 +490,244 @@ Email: lizy@xinertel.com</t>
   </back>
 
 <!-- ##markdown-source:
-H4sIAAAAAAAAA61d65LbVnL+z6dARlWJVCapXXuTH7TjeDSSvKqVbJVGXu9u
-bSUFAockPCBA4wAzQ8WpykPkCfMk6a+7zw0gpbErrq3VzBA4lz59+fpymovF
-Yvbo0aPZo+xV05uuMf3ieZdv+uxN3t2U7V2TvTf7Q533ZoaH3pkm35us31U2
-21S1yTZdu89KvLHo27JdHNuhwyOLQ9f2bdHWy32Z9W22NX1m+7zrTbmkcWQO
-HmvTdvu8z2jACxnnKzfG14uv7truZtu1w4F+5j/RcBdLXsrLtsuqpuqrvM6s
-6YfDPKMXs7apj1ljDM9qyqqnxdIkVWf7bF23xU3WbuhXU5cWC/kej1/0VV+b
-C37N4r21yYpd3mxN+WVWmtr0JrvI1+vO3F5k1QbzdBm/g2XbXdv1GOuyOWYt
-zdZlRUvEbPqsyBuMhWWYcp6th56HzjuzGeqsaXtMVjV915ZDQc91Xdvxsq5b
-UIZXmd1VdY3XaJNZPvQtUasq8prWXQ5d1Wxl91gXzX3MaPBsaHT5QqrnbfNP
-ROGmqIeSdrL43e8uMqLexQLnanvaU6NUqvl8sYLX+drU1n9Ch5Q94Hh0RFmE
-pUNYH2ksjNC3bc20pb0ThegH/LUYug6EujWdrdrmS9oLLbBsC4x2gWkzc58T
-AxrZyXswXq8ciRlsdtPlezDqotsUq2zX9we7evp0W/W7Yb0s2v3TIl+3T+On
-aJy/EqfgcDpDIxWG10LrqDohgh5ydpDF5llZbegHrFTYFRS6YhJ7wtFC6cyx
-C2yOnil2nnTE34+X9/uaN/SXN6/nmemL5XL5BJt69Eh4aZVdXL5aXFpbWeKW
-7CWt2IDA/NKlHDz9/TvT81/fqoCRgNqe2OBi5kcZvxuNeu5tEeTrgymqDXFX
-T9uwFzPheVnYd2/fX8zoE7Ntu+OKGGPTzmZ6UivljWKoFs2+2y7ApwtwwuJ3
-n8/ssN5XFpTpjwd69tW79y9nzbBfm241K2nE1YwExhLxBrvK+m4wM5rzixkx
-Ub7Kvj+YTtaT5U1JeqnJt2ZPRzHz3Lfy2wqfkqqyJu/oEL7FI7Mbc6QnytUs
-W2RON2W9bB5/c5LVNvit0fGILz09ZremGWitWeYmffPuW/pNNjWaLiMOqOpV
-Bmp8U5l+s2w7mifDI4FLafN53+XFjemW7qGn9D+89RQTMRevsh93hsjU/fj0
-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
+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
 
 -->
 
